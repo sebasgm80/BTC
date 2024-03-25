@@ -1,0 +1,6 @@
+- Installs -
+
+npm create vite@latest BTC
+npm install
+npm install axios
+npm run dev
