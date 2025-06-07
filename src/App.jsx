@@ -23,7 +23,9 @@ function App() {
 
   // Función para calcular el valor total de los BTC en base a los inputs
   const calculateTotalBTCValue = () => {
-    return (walletAmount - btcIntocableAmount) / calculateMonthsDifference()*-1;
+    const months = calculateMonthsDifference();
+    if (months === 0) return 0; // Evitar divisiones por cero
+    return ((walletAmount - btcIntocableAmount) / months) * -1;
   };
 
   return (
