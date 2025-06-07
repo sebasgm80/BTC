@@ -23,8 +23,12 @@ function App() {
 
   // Función para calcular el valor total de los BTC en base a los inputs
   const calculateTotalBTCValue = () => {
-    return (walletAmount - btcIntocableAmount) / calculateMonthsDifference()*-1;
+    const months = calculateMonthsDifference();
+    if (months === 0) return 0;
+    return ((walletAmount - btcIntocableAmount) / months) * -1;
   };
+
+  const totalBTCValue = calculateTotalBTCValue();
 
   return (
     <>
@@ -44,17 +48,21 @@ function App() {
       </div>
       <div>
         <p>Wallet</p>
-        <input type="number" value={walletAmount} onChange={(e) => setWalletAmount(parseFloat(e.target.value))} />
+        <input type="number" value={walletAmount} onChange={(e) => setWalletAmount(parseFloat(e.target.value) || 0)} />
       </div>
       <div>
         <p>BTC Intocable</p>
-        <input type="number" value={btcIntocableAmount} onChange={(e) => setBTCIntocableAmount(parseFloat(e.target.value))} />
+        <input type="number" value={btcIntocableAmount} onChange={(e) => setBTCIntocableAmount(parseFloat(e.target.value) || 0)} />
       </div>
       <div>
-        <p>BTC mensual para retirar: {calculateTotalBTCValue()}</p>
+        <p>BTC mensual para retirar: {totalBTCValue}</p>
       </div>
       <div>
-        <p>Valor total de EUR: {(calculateTotalBTCValue() * btcPrice).toFixed(2)}</p>
+        <p>Valor total de EUR: {
+          !isNaN(totalBTCValue) && !isNaN(btcPrice)
+            ? (totalBTCValue * btcPrice).toFixed(2)
+            : 0
+        }</p>
       </div>
       </div>
     </>
