@@ -1,4 +1,4 @@
-import { UseBTCPrice } from "../../hook/BTC";
+import { useBTCPrice } from "../../hook/BTC";
 import { useState } from "react";
 
 

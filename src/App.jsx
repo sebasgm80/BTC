@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import { UseBTCPrice } from './hook/BTC';
+import { useBTCPrice } from './hook/BTC';
 import Header from './components/Header/Header';
 import { differenceInMonths } from 'date-fns';
 
@@ -10,7 +10,7 @@ function App() {
   // Definir los estados para los valores de los inputs y el resultado del cálculo
   const [walletAmount, setWalletAmount] = useState(0);
   const [btcIntocableAmount, setBTCIntocableAmount] = useState(0);
-  const btcPrice = UseBTCPrice();
+  const btcPrice = useBTCPrice();
   const [selectedDate, setSelectedDate] = useState('');
   const calculateMonthsDifference = () => {
     if (!selectedDate) return 0; // Si no se ha seleccionado ninguna fecha, retornar 0
@@ -31,7 +31,7 @@ function App() {
       <Header />
       <div className='principal'>
       <div>
-        <p>Precio de BTC: {btcPrice}</p>
+        <p>Precio de BTC: {btcPrice ? btcPrice : 'Cargando…'}</p>
       </div>
       <p>Fecha actual: {new Date().toLocaleDateString()}</p>
       <p>Fecha Final seleccionar: <input 
@@ -54,7 +54,7 @@ function App() {
         <p>BTC mensual para retirar: {calculateTotalBTCValue()}</p>
       </div>
       <div>
-        <p>Valor total de EUR: {(calculateTotalBTCValue() * btcPrice).toFixed(2)}</p>
+        <p>Valor total de EUR: {btcPrice ? (calculateTotalBTCValue() * btcPrice).toFixed(2) : 'Cargando…'}</p>
       </div>
       </div>
     </>
