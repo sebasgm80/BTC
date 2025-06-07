@@ -3,7 +3,7 @@ import { useState } from "react";
 
 
 
-export function App() {
+export function Calculator() {
     // Estados para almacenar los valores de los inputs
     const [walletValue, setWalletValue] = useState(0);
     const [btcIntocableValue, setBtcIntocableValue] = useState(0);
