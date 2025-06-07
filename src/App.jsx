@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 import { UseBTCPrice } from './hook/BTC';
 import Header from './components/Header/Header';
@@ -18,12 +18,16 @@ function App() {
     const currentDate = new Date();
     const parsedSelectedDate = new Date(selectedDate);
 
-    return differenceInMonths(currentDate, parsedSelectedDate);
+    return differenceInMonths(parsedSelectedDate, currentDate);
   };
 
   // Función para calcular el valor total de los BTC en base a los inputs
+  const monthsDifference = calculateMonthsDifference();
+  const displayMonths = monthsDifference > 0 ? monthsDifference : 0;
+
   const calculateTotalBTCValue = () => {
-    return (walletAmount - btcIntocableAmount) / calculateMonthsDifference()*-1;
+    if (monthsDifference <= 0) return 0;
+    return (walletAmount - btcIntocableAmount) / monthsDifference;
   };
 
   return (
@@ -40,7 +44,7 @@ function App() {
           onChange={(e) => setSelectedDate(e.target.value)} 
         /></p>
       <div>
-        <p>Meses transcurridos desde la fecha seleccionada: {calculateMonthsDifference()*-1}</p>
+        <p>Meses transcurridos desde la fecha seleccionada: {displayMonths}</p>
       </div>
       <div>
         <p>Wallet</p>
