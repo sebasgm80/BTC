@@ -1,20 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
-type BTCState = {
-  price: number | null;
-  source: 'coindesk' | 'coingecko' | 'binance' | null;
-  loading: boolean;
-  error: string | null;
-};
+/**
+ * @typedef {Object} BTCState
+ * @property {number | null} price
+ * @property {'coindesk' | 'coingecko' | 'binance' | null} source
+ * @property {boolean} loading
+ * @property {string | null} error
+ */
 
-export function UseBTCPrice(refreshMs: number = 60000) {
-  const [state, setState] = useState<BTCState>({
-    price: null,
-    source: null,
-    loading: true,
-    error: null,
-  });
-  const timer = useRef<number | null>(null);
+/**
+ * Hook to obtain the Bitcoin price from multiple providers.
+ * @param {number} [refreshMs=60000]
+ * @returns {BTCState}
+ */
+export function UseBTCPrice(refreshMs = 60000) {
+  const [state, setState] = useState(
+    /** @type {BTCState} */ ({ price: null, source: null, loading: true, error: null })
+  );
+  const timer = useRef(/** @type {number | null} */ (null));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -29,7 +32,7 @@ export function UseBTCPrice(refreshMs: number = 60000) {
       // Estructura: data.bpi.EUR.rate_float
       const price = Number(data?.bpi?.EUR?.rate_float);
       if (!Number.isFinite(price)) throw new Error('Coindesk sin EUR válido');
-      return { price, source: 'coindesk' as const };
+      return { price, source: 'coindesk' };
     };
 
     const fetchCoingecko = async () => {
@@ -41,7 +44,7 @@ export function UseBTCPrice(refreshMs: number = 60000) {
       const data = await res.json();
       const price = Number(data?.bitcoin?.eur);
       if (!Number.isFinite(price)) throw new Error('CoinGecko sin EUR válido');
-      return { price, source: 'coingecko' as const };
+      return { price, source: 'coingecko' };
     };
 
     const fetchBinance = async () => {
@@ -53,7 +56,7 @@ export function UseBTCPrice(refreshMs: number = 60000) {
       const data = await res.json();
       const price = Number(data?.price);
       if (!Number.isFinite(price)) throw new Error('Binance sin precio válido');
-      return { price, source: 'binance' as const };
+      return { price, source: 'binance' };
     };
 
     const getPrice = async () => {
@@ -92,7 +95,6 @@ export function UseBTCPrice(refreshMs: number = 60000) {
 
     // refresco periódico
     if (refreshMs > 0) {
-      // @ts-ignore - en navegador, setInterval devuelve number
       timer.current = window.setInterval(getPrice, refreshMs);
     }
 
