@@ -10,7 +10,7 @@ export function Calculator() {
     const [walletValue, setWalletValue] = useState(0);
     const [btcIntocableValue, setBtcIntocableValue] = useState(0);
     const [selectedDate, setSelectedDate] = useState("");
-    const btcPrice = UseBTCPrice();
+    const { price: btcPrice, loading, error } = UseBTCPrice();
 
     // Función para manejar el cambio en el input de la wallet
     const handleWalletChange = (event) => {
@@ -64,7 +64,9 @@ export function Calculator() {
     return (
       <form className="calculator" onSubmit={(e) => e.preventDefault()}>
         <div className="field">
-          <label>Precio de BTC: {btcPrice}</label>
+          <label>
+            Precio de BTC: {loading ? "Cargando…" : error ? error : btcPrice}
+          </label>
         </div>
 
         <div className="field">
@@ -118,7 +120,7 @@ export function Calculator() {
 
         <div className="field">
           <p>
-            Valor total de EUR: {(totalBTCValue * btcPrice).toFixed(2)}
+            Valor total de EUR: {(totalBTCValue * (btcPrice ?? 0)).toFixed(2)}
           </p>
         </div>
       </form>
