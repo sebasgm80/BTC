@@ -23,9 +23,9 @@ function App() {
 
   // Función para calcular el valor total de los BTC en base a los inputs
   const calculateTotalBTCValue = () => {
-    const months = calculateMonthsDifference();
+    const months = Math.abs(calculateMonthsDifference());
     if (months === 0) return 0;
-    return ((walletAmount - btcIntocableAmount) / months) * -1;
+    return (walletAmount - btcIntocableAmount) / months;
   };
 
   const totalBTCValue = calculateTotalBTCValue();
@@ -44,7 +44,7 @@ function App() {
           onChange={(e) => setSelectedDate(e.target.value)} 
         /></p>
       <div>
-        <p>Meses transcurridos desde la fecha seleccionada: {calculateMonthsDifference()*-1}</p>
+        <p>Meses transcurridos desde la fecha seleccionada: {Math.abs(calculateMonthsDifference())}</p>
       </div>
       <div>
         <p>Wallet</p>
