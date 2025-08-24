@@ -10,7 +10,7 @@ export function Calculator() {
     const [walletValue, setWalletValue] = useState(0);
     const [btcIntocableValue, setBtcIntocableValue] = useState(0);
     const [selectedDate, setSelectedDate] = useState("");
-    const btcPrice = UseBTCPrice();
+    const { price: btcPrice, loading, error } = UseBTCPrice();
 
     // Función para manejar el cambio en el input de la wallet
     const handleWalletChange = (event) => {
@@ -36,6 +36,7 @@ export function Calculator() {
 
     const monthsDifference = calculateMonthsDifference();
     const validDate = selectedDate && monthsDifference < 0;
+    const isValidPrice = typeof btcPrice === "number" && Number.isFinite(btcPrice);
 
     // Validaciones y mensajes de error
     const walletError = walletValue < 0 ? "El valor debe ser positivo" : "";
@@ -58,10 +59,26 @@ export function Calculator() {
       return ((walletValue - btcIntocableValue) / monthsDifference) * -1;
     };
 
+    const totalBTCValue = calculateTotalBTCValue();
+    const totalEURValue =
+      !loading && !error && isValidPrice
+        ? (totalBTCValue * btcPrice).toFixed(2)
+        : "0.00";
+
     return (
       <form className="calculator" onSubmit={(e) => e.preventDefault()}>
         <div className="field">
-          <label>Precio de BTC: {btcPrice}</label>
+          <label>
+            Precio de BTC: {
+              loading
+                ? "Cargando..."
+                : error
+                ? error
+                : isValidPrice
+                ? btcPrice
+                : "N/A"
+            }
+          </label>
         </div>
 
         <div className="field">
@@ -110,13 +127,11 @@ export function Calculator() {
         </div>
 
         <div className="field">
-          <p>BTC mensual para retirar: {calculateTotalBTCValue()}</p>
+          <p>BTC mensual para retirar: {totalBTCValue}</p>
         </div>
 
         <div className="field">
-          <p>
-            Valor total de EUR: {(calculateTotalBTCValue() * btcPrice).toFixed(2)}
-          </p>
+          <p>Valor total de EUR: {totalEURValue}</p>
         </div>
       </form>
     );
