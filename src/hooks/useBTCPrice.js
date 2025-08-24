@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
  * Custom hook to fetch current Bitcoin price.
@@ -12,7 +12,7 @@ export default function useBTCPrice(currency = 'USD', refreshMs = 60000) {
   const [error, setError] = useState(null);
   const intervalRef = useRef(null);
 
-  const fetchPrice = async () => {
+  const fetchPrice = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -28,7 +28,7 @@ export default function useBTCPrice(currency = 'USD', refreshMs = 60000) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currency]);
 
   useEffect(() => {
     fetchPrice();
@@ -37,7 +37,7 @@ export default function useBTCPrice(currency = 'USD', refreshMs = 60000) {
       return () => clearInterval(intervalRef.current);
     }
     return undefined;
-  }, [currency, refreshMs]);
+  }, [fetchPrice, refreshMs]);
 
   return { price, loading, error, refetch: fetchPrice };
 }

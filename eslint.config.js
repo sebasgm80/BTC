@@ -27,8 +27,9 @@ export default [
     rules: {
       ...pluginReact.configs.recommended.rules,
       ...pluginReactHooks.configs.recommended.rules,
-      ...pluginReactRefresh.configs.recommended.rules,
-      'react/react-in-jsx-scope': 'off'
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off'
     }
   }
 ];
