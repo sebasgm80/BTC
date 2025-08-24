@@ -30,10 +30,14 @@ function ProfitLossChart() {
   );
 }
 
-export function Dashboard() {
+export function Dashboard({ username = "Guest", avatarUrl = "https://i.pravatar.cc/100" }) {
   return (
     <section>
-      <h2>Profit &amp; Loss</h2>
+      <header>
+        <img src={avatarUrl} alt={`${username} avatar`} width="50" height="50" />
+        <h2>{username}</h2>
+      </header>
+      <h3>Profit &amp; Loss</h3>
       <ProfitLossChart />
     </section>
   );
