@@ -14,12 +14,14 @@ export function Calculator() {
 
     // Función para manejar el cambio en el input de la wallet
     const handleWalletChange = (event) => {
-      setWalletValue(parseFloat(event.target.value)); // Convertimos el valor a número flotante
+      const value = Number(event.target.value);
+      setWalletValue(Number.isNaN(value) ? 0 : value);
     };
 
     // Función para manejar el cambio en el input de BTC Intocable
     const handleBtcIntocableChange = (event) => {
-      setBtcIntocableValue(parseFloat(event.target.value)); // Convertimos el valor a número flotante
+      const value = Number(event.target.value);
+      setBtcIntocableValue(Number.isNaN(value) ? 0 : value);
     };
 
     // Función para manejar el cambio en la fecha seleccionada
