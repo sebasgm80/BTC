@@ -1,4 +1,4 @@
-import { UseBTCPrice } from "../../hook/BTC";
+import useBTCPrice from "../../hooks/useBTCPrice";
 import { useState } from "react";
 import { differenceInMonths } from "date-fns";
 import "./Calculator.css";
@@ -10,7 +10,7 @@ export function Calculator() {
     const [walletValue, setWalletValue] = useState(0);
     const [btcIntocableValue, setBtcIntocableValue] = useState(0);
     const [selectedDate, setSelectedDate] = useState("");
-    const btcPrice = UseBTCPrice();
+    const { price: btcPrice } = useBTCPrice('EUR');
 
     // Función para manejar el cambio en el input de la wallet
     const handleWalletChange = (event) => {
