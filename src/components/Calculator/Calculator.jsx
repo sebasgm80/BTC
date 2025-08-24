@@ -1,4 +1,4 @@
-import { UseBTCPrice } from "../../hook/BTC";
+import { UseBTCPrice } from "../../hooks/btc";
 import { useState } from "react";
 import { differenceInMonths } from "date-fns";
 import "./Calculator.css";
