@@ -57,6 +57,7 @@ export function Calculator() {
       if (!validDate) return 0; // Evitar divisiones por cero o fechas inválidas
       return ((walletValue - btcIntocableValue) / monthsDifference) * -1;
     };
+    const totalBTCValue = calculateTotalBTCValue();
 
     return (
       <form className="calculator" onSubmit={(e) => e.preventDefault()}>
@@ -110,12 +111,12 @@ export function Calculator() {
         </div>
 
         <div className="field">
-          <p>BTC mensual para retirar: {calculateTotalBTCValue()}</p>
+          <p>BTC mensual para retirar: {totalBTCValue}</p>
         </div>
 
         <div className="field">
           <p>
-            Valor total de EUR: {(calculateTotalBTCValue() * btcPrice).toFixed(2)}
+            Valor total de EUR: {(totalBTCValue * btcPrice).toFixed(2)}
           </p>
         </div>
       </form>
