@@ -46,6 +46,150 @@
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
 
+.metodologia {
+  grid-column: 1 / -1;
+  border-radius: 1.4rem;
+  padding: 1.9rem 2.1rem;
+  background: rgba(12, 18, 32, 0.72);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--foreground);
+  display: grid;
+  gap: 1.1rem;
+}
+
+.metodologia h2 {
+  margin: 0;
+}
+
+.metodologia details {
+  border-radius: 1.2rem;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  padding: 1.25rem 1.5rem;
+}
+
+.metodologia summary {
+  cursor: pointer;
+  font-weight: 600;
+  outline: none;
+}
+
+.metodologia summary:focus-visible {
+  outline: 2px solid rgba(247, 147, 26, 0.6);
+  outline-offset: 4px;
+}
+
+.metodologia__content {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.85rem;
+  font-size: 0.95rem;
+}
+
+.metodologia__content ul {
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.metodologia code {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.9rem;
+}
+
+.app-footer {
+  width: min(980px, calc(100% - 2.5rem));
+  margin: 0 auto 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+}
+
+.app-footer__link {
+  border: none;
+  background: transparent;
+  color: #f7931a;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 0;
+}
+
+.app-footer__link:focus-visible {
+  outline: 2px solid rgba(247, 147, 26, 0.6);
+  outline-offset: 2px;
+}
+
+.app-toast {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  background: rgba(10, 16, 28, 0.92);
+  border-radius: 0.9rem;
+  padding: 0.85rem 1.3rem;
+  border: 1px solid rgba(247, 147, 26, 0.5);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  color: #fff;
+  z-index: 40;
+  max-width: min(320px, 90vw);
+  cursor: pointer;
+}
+
+.app-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 10, 20, 0.78);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  z-index: 45;
+}
+
+.app-modal__content {
+  width: min(680px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: rgba(10, 14, 26, 0.95);
+  border-radius: 1.3rem;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55);
+  display: grid;
+  gap: 1rem;
+}
+
+.app-modal__close {
+  justify-self: flex-end;
+}
+
+.terminos {
+  display: grid;
+  gap: 1rem;
+  color: var(--foreground);
+}
+
+.terminos h2 {
+  margin: 0;
+}
+
+.terminos h3 {
+  margin: 1rem 0 0.35rem;
+}
+
+.terminos p {
+  margin: 0;
+  line-height: 1.6;
+}
+
 #calculator-heading,
 #dashboard-heading {
   scroll-margin-top: 120px;
@@ -151,6 +295,16 @@
     padding: 1.55rem;
     border-radius: 1.4rem;
   }
+
+  .metodologia {
+    padding: 1.5rem 1.6rem;
+  }
+
+  .app-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
 }
 
 @media (max-width: 600px) {
@@ -193,6 +347,14 @@
   .card {
     padding: 1.35rem;
     border-radius: 1.25rem;
+  }
+
+  .app-modal {
+    padding: 1.25rem;
+  }
+
+  .app-modal__content {
+    padding: 1.5rem;
   }
 }
 
