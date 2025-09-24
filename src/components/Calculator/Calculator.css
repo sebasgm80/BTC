@@ -483,3 +483,33 @@
     align-items: stretch;
   }
 }
+
+@media (max-width: 600px) {
+  .calculator {
+    gap: 1.45rem;
+  }
+
+  .calculator__price,
+  .calculator__result,
+  .calculator__insights,
+  .calculator__scenario,
+  .calculator__advice,
+  .calculator__schedule {
+    padding: 1.1rem;
+  }
+
+  .calculator__price-value {
+    font-size: 1.45rem;
+  }
+
+  .calculator__result-value {
+    font-size: 1.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .calculator__profile-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

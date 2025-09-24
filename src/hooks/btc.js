@@ -11,10 +11,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
  * Hook to obtain the Bitcoin price from multiple providers.
- * @param {number} [refreshMs=60000]
+ * @param {number} [refreshMs=3600000]
  * @returns {BTCState & { refresh: () => Promise<void> }}
  */
-export function UseBTCPrice(refreshMs = 60000) {
+export function UseBTCPrice(refreshMs = 60 * 60 * 1000) {
   const [state, setState] = useState(
     /** @type {BTCState} */ ({
       price: null,
