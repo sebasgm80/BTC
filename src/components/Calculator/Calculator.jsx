@@ -14,10 +14,14 @@ import {
   STORAGE_KEYS,
   VARIATION_MIN,
   VARIATION_MAX,
+
+=======
+  createProfileId,
   readProfiles,
   writeProfiles,
   dispatchPlanUpdate,
 } from "../../lib/calculatorStorage";
+ codex/define-alternative-withdrawal-systems-5elrq4
 import { createProfileId } from "../../lib/id";
 
 const sourceLabels = {
@@ -48,11 +52,16 @@ const {
   priceVariation: VARIATION_STORAGE_KEY,
   monthlyTarget: MONTHLY_TARGET_STORAGE_KEY,
 } = STORAGE_KEYS;
+const SCHEDULE_PREVIEW_LIMIT = 12;
+
+const positiveOrNull = (value) =>
+  Number.isFinite(value) && value > 0 ? value : null;
 
 const SCHEDULE_PREVIEW_LIMIT = 12;
 
 const positiveOrNull = (value) =>
   Number.isFinite(value) && value > 0 ? value : null;
+
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
