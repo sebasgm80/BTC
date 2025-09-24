@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./Calculator.css";
 import { calculateWithdrawPlan, getPeriodsUntilDate } from "../../lib/plan";
+import {
+  STRATEGY_DEFINITIONS,
+  GLOBAL_STRATEGY_DEFAULTS,
+  ensureStrategyId,
+  sanitizeStrategyConfig,
+  sanitizeGlobalStrategy,
+  mergeStrategyConfigs,
+  parseNullableNumber,
+} from "../../lib/strategyCatalog";
+import {
+  STORAGE_KEYS,
+  VARIATION_MIN,
+  VARIATION_MAX,
+  readProfiles,
+  writeProfiles,
+  dispatchPlanUpdate,
+  createProfileId as generateProfileId,
+} from "../../lib/calculatorStorage";
 
 const sourceLabels = {
   coindesk: "CoinDesk",
@@ -19,44 +37,24 @@ const eurFormatter = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 2,
 });
 
-const PROFILE_STORAGE_KEY = "btc-profiles";
-const PLAN_UPDATE_EVENT = "btc-plan-updated";
-const VARIATION_STORAGE_KEY = "btc-price-variation";
-const VARIATION_MIN = -50;
-const VARIATION_MAX = 60;
+const {
+  walletValue: WALLET_STORAGE_KEY,
+  btcIntocableValue: INTOCABLE_STORAGE_KEY,
+  selectedDate: SELECTED_DATE_STORAGE_KEY,
+  frequency: FREQUENCY_STORAGE_KEY,
+  strategy: STRATEGY_STORAGE_KEY,
+  strategyConfig: STRATEGY_CONFIG_STORAGE_KEY,
+  globalStrategy: GLOBAL_STRATEGY_STORAGE_KEY,
+  priceVariation: VARIATION_STORAGE_KEY,
+  monthlyTarget: MONTHLY_TARGET_STORAGE_KEY,
+} = STORAGE_KEYS;
+
 const SCHEDULE_PREVIEW_LIMIT = 12;
-const MONTHLY_TARGET_STORAGE_KEY = "btc-monthly-target";
+
+const positiveOrNull = (value) =>
+  Number.isFinite(value) && value > 0 ? value : null;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-const createProfileId = () => {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `profile-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
-const readProfiles = () => {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((profile) => typeof profile?.name === "string")
-      .map((profile) => ({
-        id: typeof profile?.id === "string" ? profile.id : createProfileId(),
-        name: profile.name,
-        walletValue: Number(profile?.walletValue) || 0,
-        btcIntocableValue: Number(profile?.btcIntocableValue) || 0,
-        selectedDate: typeof profile?.selectedDate === "string" ? profile.selectedDate : "",
-        frequency: profile?.frequency === "weekly" ? "weekly" : "monthly",
-      }));
-  } catch (error) {
-    return [];
-  }
-};
 
 export function Calculator({ price, source, loading, error, lastUpdated, onRefresh }) {
   const readNumberFromStorage = (key) => {
@@ -71,16 +69,41 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     return window.localStorage.getItem(key) ?? "";
   };
 
-  const [walletValue, setWalletValue] = useState(() => readNumberFromStorage("walletValue"));
+  const [walletValue, setWalletValue] = useState(() => readNumberFromStorage(WALLET_STORAGE_KEY));
   const [btcIntocableValue, setBtcIntocableValue] = useState(() =>
-    readNumberFromStorage("btcIntocableValue")
+    readNumberFromStorage(INTOCABLE_STORAGE_KEY)
   );
-  const [selectedDate, setSelectedDate] = useState(() => readStringFromStorage("selectedDate"));
+  const [selectedDate, setSelectedDate] = useState(() =>
+    readStringFromStorage(SELECTED_DATE_STORAGE_KEY)
+  );
   const [frequency, setFrequency] = useState(() => {
     if (typeof window === "undefined") return "monthly";
-    return window.localStorage.getItem("frequency") ?? "monthly";
+    return window.localStorage.getItem(FREQUENCY_STORAGE_KEY) ?? "monthly";
   });
   const [profiles, setProfiles] = useState(() => readProfiles());
+  const [strategy, setStrategy] = useState(() => {
+    if (typeof window === "undefined") return "uniforme";
+    const stored = window.localStorage.getItem(STRATEGY_STORAGE_KEY);
+    return ensureStrategyId(stored);
+  });
+  const [strategyConfigs, setStrategyConfigs] = useState(() => {
+    if (typeof window === "undefined") return mergeStrategyConfigs();
+    try {
+      const raw = window.localStorage.getItem(STRATEGY_CONFIG_STORAGE_KEY);
+      return mergeStrategyConfigs(raw ? JSON.parse(raw) : {});
+    } catch (error) {
+      return mergeStrategyConfigs();
+    }
+  });
+  const [globalStrategy, setGlobalStrategy] = useState(() => {
+    if (typeof window === "undefined") return { ...GLOBAL_STRATEGY_DEFAULTS };
+    try {
+      const raw = window.localStorage.getItem(GLOBAL_STRATEGY_STORAGE_KEY);
+      return sanitizeGlobalStrategy(raw ? JSON.parse(raw) : {});
+    } catch (error) {
+      return { ...GLOBAL_STRATEGY_DEFAULTS };
+    }
+  });
   const [profileName, setProfileName] = useState("");
   const [monthlyTarget, setMonthlyTarget] = useState(() =>
     readNumberFromStorage(MONTHLY_TARGET_STORAGE_KEY)
@@ -94,37 +117,59 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
   });
 
   const notifyPlanUpdate = useCallback(() => {
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(new Event(PLAN_UPDATE_EVENT));
-  }, []);
+    dispatchPlanUpdate();
+  }, [dispatchPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("walletValue", String(walletValue));
+    window.localStorage.setItem(WALLET_STORAGE_KEY, String(walletValue));
     notifyPlanUpdate();
   }, [walletValue, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("btcIntocableValue", String(btcIntocableValue));
+    window.localStorage.setItem(INTOCABLE_STORAGE_KEY, String(btcIntocableValue));
     notifyPlanUpdate();
   }, [btcIntocableValue, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("selectedDate", selectedDate);
+    window.localStorage.setItem(SELECTED_DATE_STORAGE_KEY, selectedDate);
     notifyPlanUpdate();
   }, [selectedDate, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("frequency", frequency);
+    window.localStorage.setItem(FREQUENCY_STORAGE_KEY, frequency);
     notifyPlanUpdate();
   }, [frequency, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
+    window.localStorage.setItem(STRATEGY_STORAGE_KEY, strategy);
+    notifyPlanUpdate();
+  }, [strategy, notifyPlanUpdate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      STRATEGY_CONFIG_STORAGE_KEY,
+      JSON.stringify(strategyConfigs)
+    );
+    notifyPlanUpdate();
+  }, [strategyConfigs, notifyPlanUpdate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      GLOBAL_STRATEGY_STORAGE_KEY,
+      JSON.stringify(globalStrategy)
+    );
+    notifyPlanUpdate();
+  }, [globalStrategy, notifyPlanUpdate]);
+
+  useEffect(() => {
+    writeProfiles(profiles);
     notifyPlanUpdate();
   }, [profiles, notifyPlanUpdate]);
 
@@ -157,16 +202,343 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
   const handleFrequencyChange = (event) => {
     setFrequency(event.target.value);
   };
+  const handleStrategyChange = (event) => {
+    setStrategy(ensureStrategyId(event.target.value));
+  };
+  const handleFeeChange = (event) => {
+    const value = parseNullableNumber(event.target.value);
+    setGlobalStrategy((prev) => ({
+      ...prev,
+      feePercent: value !== null ? clamp(value, 0, 100) : 0,
+    }));
+  };
+  const handleMinChange = (event) => {
+    setGlobalStrategy((prev) => ({
+      ...prev,
+      minWithdrawal: parseNullableNumber(event.target.value),
+    }));
+  };
+  const handleMaxChange = (event) => {
+    setGlobalStrategy((prev) => ({
+      ...prev,
+      maxWithdrawal: parseNullableNumber(event.target.value),
+    }));
+  };
 
   const periodsDifference = useMemo(
     () => getPeriodsUntilDate(selectedDate, frequency),
     [selectedDate, frequency]
   );
+  const currentStrategyConfig = useMemo(
+    () => sanitizeStrategyConfig(strategy, strategyConfigs[strategy]),
+    [strategy, strategyConfigs]
+  );
+  const preparedGlobalStrategy = useMemo(
+    () => sanitizeGlobalStrategy(globalStrategy),
+    [globalStrategy]
+  );
+  const activeStrategyDefinition = useMemo(
+    () => STRATEGY_DEFINITIONS.find((definition) => definition.id === strategy),
+    [strategy]
+  );
+  const setStrategyConfigValue = useCallback(
+    (key, value) => {
+      setStrategyConfigs((prev) => ({
+        ...prev,
+        [strategy]: {
+          ...prev[strategy],
+          [key]: value,
+        },
+      }));
+    },
+    [strategy]
+  );
+  const periodLabel = frequency === "weekly" ? "semanal" : "mensual";
+  const strategySpecificFields = useMemo(() => {
+    switch (strategy) {
+      case "porcentaje_fijo": {
+        return (
+          <>
+            <div className="field">
+              <label htmlFor="strategy-annual-percent">Porcentaje anual (%)</label>
+              <input
+                id="strategy-annual-percent"
+                type="number"
+                min="0"
+                step="0.1"
+                value={
+                  currentStrategyConfig.annualPercent !== null &&
+                  currentStrategyConfig.annualPercent !== undefined
+                    ? currentStrategyConfig.annualPercent
+                    : ""
+                }
+                onChange={(event) =>
+                  setStrategyConfigValue("annualPercent", parseNullableNumber(event.target.value))
+                }
+              />
+              <p className="help">
+                Divide automáticamente el porcentaje entre los periodos {periodLabel}es.
+              </p>
+            </div>
+            <div className="field">
+              <label htmlFor="strategy-period-percent">Por periodo (%) (opcional)</label>
+              <input
+                id="strategy-period-percent"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Calculado a partir del porcentaje anual"
+                value={
+                  currentStrategyConfig.periodPercent !== null &&
+                  currentStrategyConfig.periodPercent !== undefined
+                    ? currentStrategyConfig.periodPercent
+                    : ""
+                }
+                onChange={(event) =>
+                  setStrategyConfigValue("periodPercent", parseNullableNumber(event.target.value))
+                }
+              />
+              <p className="help">Déjalo vacío para usar el porcentaje anual.</p>
+            </div>
+          </>
+        );
+      }
+      case "creciente": {
+        return (
+          <div className="field">
+            <label htmlFor="strategy-growth">Crecimiento por periodo (%)</label>
+            <input
+              id="strategy-growth"
+              type="number"
+              min="0"
+              step="0.1"
+              value={
+                currentStrategyConfig.growthPercent !== null &&
+                currentStrategyConfig.growthPercent !== undefined
+                  ? currentStrategyConfig.growthPercent
+                  : ""
+              }
+              onChange={(event) =>
+                setStrategyConfigValue("growthPercent", parseNullableNumber(event.target.value))
+              }
+            />
+            <p className="help">Simula una renta que crece cada periodo (ej. inflación o mayores gastos).</p>
+          </div>
+        );
+      }
+      case "disminucion": {
+        return (
+          <div className="field">
+            <label htmlFor="strategy-decay">Reducción por periodo (%)</label>
+            <input
+              id="strategy-decay"
+              type="number"
+              min="0"
+              step="0.1"
+              value={
+                currentStrategyConfig.decayPercent !== null &&
+                currentStrategyConfig.decayPercent !== undefined
+                  ? currentStrategyConfig.decayPercent
+                  : ""
+              }
+              onChange={(event) =>
+                setStrategyConfigValue("decayPercent", parseNullableNumber(event.target.value))
+              }
+            />
+            <p className="help">Empieza con retiros altos y ve reduciéndolos con el tiempo.</p>
+          </div>
+        );
+      }
+      case "volatilidad": {
+        return (
+          <>
+            <div className="field">
+              <label htmlFor="strategy-up">% sobre saldo si el precio supera la media</label>
+              <input
+                id="strategy-up"
+                type="number"
+                min="0"
+                step="0.1"
+                value={
+                  currentStrategyConfig.pUpPercent !== null &&
+                  currentStrategyConfig.pUpPercent !== undefined
+                    ? currentStrategyConfig.pUpPercent
+                    : ""
+                }
+                onChange={(event) =>
+                  setStrategyConfigValue("pUpPercent", parseNullableNumber(event.target.value))
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="strategy-down">% sobre saldo en escenarios bajistas</label>
+              <input
+                id="strategy-down"
+                type="number"
+                min="0"
+                step="0.05"
+                value={
+                  currentStrategyConfig.pDownPercent !== null &&
+                  currentStrategyConfig.pDownPercent !== undefined
+                    ? currentStrategyConfig.pDownPercent
+                    : ""
+                }
+                onChange={(event) =>
+                  setStrategyConfigValue("pDownPercent", parseNullableNumber(event.target.value))
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="strategy-window">Ventana media móvil (periodos)</label>
+              <input
+                id="strategy-window"
+                type="number"
+                min="1"
+                step="1"
+                value={currentStrategyConfig.maWindow ?? 20}
+                onChange={(event) =>
+                  setStrategyConfigValue("maWindow", parseNullableNumber(event.target.value))
+                }
+              />
+            </div>
+          </>
+        );
+      }
+      case "metas": {
+        return (
+          <>
+            <div className="field">
+              <label htmlFor="strategy-milestone">Hito sobre el último precio (%)</label>
+              <input
+                id="strategy-milestone"
+                type="number"
+                min="0"
+                step="0.5"
+                value={
+                  currentStrategyConfig.milestonePercent !== null &&
+                  currentStrategyConfig.milestonePercent !== undefined
+                    ? currentStrategyConfig.milestonePercent
+                    : ""
+                }
+                onChange={(event) =>
+                  setStrategyConfigValue("milestonePercent", parseNullableNumber(event.target.value))
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="strategy-portion-mode">Modo de retiro</label>
+              <select
+                id="strategy-portion-mode"
+                value={currentStrategyConfig.portionMode ?? "percent"}
+                onChange={(event) =>
+                  setStrategyConfigValue(
+                    "portionMode",
+                    event.target.value === "fixed" ? "fixed" : "percent"
+                  )
+                }
+              >
+                <option value="percent">Porcentaje del saldo disponible</option>
+                <option value="fixed">Cantidad fija en BTC</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="strategy-portion-value">
+                {currentStrategyConfig.portionMode === "fixed"
+                  ? "BTC a retirar cuando se cumpla el hito"
+                  : "% del saldo a retirar cuando se cumpla el hito"}
+              </label>
+              <input
+                id="strategy-portion-value"
+                type="number"
+                min="0"
+                step={currentStrategyConfig.portionMode === "fixed" ? "0.00000001" : "0.5"}
+                value={
+                  currentStrategyConfig.portionValue !== null &&
+                  currentStrategyConfig.portionValue !== undefined
+                    ? currentStrategyConfig.portionValue
+                    : ""
+                }
+                onChange={(event) =>
+                  setStrategyConfigValue("portionValue", parseNullableNumber(event.target.value))
+                }
+              />
+            </div>
+          </>
+        );
+      }
+      case "hibrido": {
+        return (
+          <>
+            <div className="field">
+              <label htmlFor="strategy-base">Retiro mínimo en BTC</label>
+              <input
+                id="strategy-base"
+                type="number"
+                min="0"
+                step="0.00000001"
+                value={
+                  currentStrategyConfig.baseBtc !== null &&
+                  currentStrategyConfig.baseBtc !== undefined
+                    ? currentStrategyConfig.baseBtc
+                    : ""
+                }
+                onChange={(event) =>
+                  setStrategyConfigValue("baseBtc", parseNullableNumber(event.target.value))
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="strategy-beta">Factor beta</label>
+              <input
+                id="strategy-beta"
+                type="number"
+                min="0"
+                step="0.1"
+                value={
+                  currentStrategyConfig.betaFactor !== null &&
+                  currentStrategyConfig.betaFactor !== undefined
+                    ? currentStrategyConfig.betaFactor
+                    : ""
+                }
+                onChange={(event) =>
+                  setStrategyConfigValue("betaFactor", parseNullableNumber(event.target.value))
+                }
+              />
+              <p className="help">Controla cuánto aumenta el retiro cuando el precio sube.</p>
+            </div>
+          </>
+        );
+      }
+      case "uniforme_eur": {
+        return (
+          <div className="field">
+            <label htmlFor="strategy-eur">Objetivo por periodo (EUR)</label>
+            <input
+              id="strategy-eur"
+              type="number"
+              min="0"
+              step="50"
+              value={
+                currentStrategyConfig.targetEur !== null &&
+                currentStrategyConfig.targetEur !== undefined
+                  ? currentStrategyConfig.targetEur
+                  : ""
+              }
+              onChange={(event) =>
+                setStrategyConfigValue("targetEur", parseNullableNumber(event.target.value))
+              }
+            />
+          </div>
+        );
+      }
+      default:
+        return null;
+    }
+  }, [strategy, currentStrategyConfig, periodLabel, setStrategyConfigValue]);
   const hasDate = Boolean(selectedDate);
   const parsedSelectedDate = hasDate ? new Date(selectedDate) : null;
   const invalidSelectedDate = hasDate && (!parsedSelectedDate || Number.isNaN(parsedSelectedDate.getTime()));
   const validDate = hasDate && !invalidSelectedDate && periodsDifference > 0;
-  const periodLabel = frequency === "weekly" ? "semanal" : "mensual";
 
   const walletError = walletValue < 0 ? "El valor debe ser positivo" : "";
   const btcError =
@@ -200,22 +572,48 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
         targetDate: selectedDate,
         price: price ?? undefined,
         projectedPrice: projectedPrice ?? undefined,
+        strategy,
+        strategyConfig: currentStrategyConfig,
+        globalConfig: preparedGlobalStrategy,
       }),
-    [frequency, price, projectedPrice, safeProtectedValue, safeWalletValue, selectedDate]
+    [
+      frequency,
+      price,
+      projectedPrice,
+      safeProtectedValue,
+      safeWalletValue,
+      selectedDate,
+      strategy,
+      currentStrategyConfig,
+      preparedGlobalStrategy,
+    ]
   );
 
-  const totalBTCValue = plan.isValid ? plan.perPeriodBtc : 0;
-  const totalEURValue = plan.isValid && plan.perPeriodEur > 0 ? plan.perPeriodEur : null;
-  const projectedEURValue =
-    plan.isValid && plan.projectedPerPeriodEur > 0 ? plan.projectedPerPeriodEur : null;
+  const nextWithdrawal = plan.firstWithdrawal;
+  const nextWithdrawalBTC = nextWithdrawal ? nextWithdrawal.amountBtc : 0;
+  const nextWithdrawalEUR = nextWithdrawal ? positiveOrNull(nextWithdrawal.amountEur) : null;
+  const nextWithdrawalProjectedEUR = nextWithdrawal
+    ? positiveOrNull(nextWithdrawal.projectedAmountEur)
+    : null;
+  const averageWithdrawalBTC = plan.isValid ? plan.averagePerPeriodBtc : 0;
+  const averageWithdrawalEUR = plan.isValid ? positiveOrNull(plan.averagePerPeriodEur) : null;
   const preserved = Math.min(safeProtectedValue, safeWalletValue);
   const withdrawablePercent = safeWalletValue > 0 ? (withdrawable / safeWalletValue) * 100 : 0;
   const preservedPercent = safeWalletValue > 0 ? (preserved / safeWalletValue) * 100 : 0;
   const withdrawablePercentLabel = Math.round(withdrawablePercent);
   const preservedPercentLabel = Math.round(preservedPercent);
+  const planUsagePercent = withdrawable > 0 ? (plan.totals.btc / withdrawable) * 100 : 0;
 
+  const monthlyPayoutBTC = plan.isValid ? plan.monthlyAverageBtc : 0;
+  const monthlyPayoutEUR =
+    plan.isValid && Number.isFinite(plan.monthlyAverageEur) ? plan.monthlyAverageEur : null;
+  const projectedMonthlyPayoutEUR =
+    plan.isValid && Number.isFinite(plan.monthlyProjectedEur) ? plan.monthlyProjectedEur : null;
+  const safeMonthlyTarget = Math.max(monthlyTarget, 0);
   const eurDifference =
-    totalEURValue !== null && projectedEURValue !== null ? projectedEURValue - totalEURValue : null;
+    monthlyPayoutEUR !== null && projectedMonthlyPayoutEUR !== null
+      ? projectedMonthlyPayoutEUR - monthlyPayoutEUR
+      : null;
   const eurDifferenceLabel =
     eurDifference === null
       ? "Sin datos"
@@ -229,10 +627,10 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       ? "calculator__scenario-positive"
       : "calculator__scenario-negative";
   const scenarioEurLabel =
-    projectedEURValue !== null
-      ? eurFormatter.format(projectedEURValue)
-      : totalEURValue !== null
-      ? eurFormatter.format(totalEURValue)
+    projectedMonthlyPayoutEUR !== null
+      ? eurFormatter.format(projectedMonthlyPayoutEUR)
+      : monthlyPayoutEUR !== null
+      ? eurFormatter.format(monthlyPayoutEUR)
       : plan.isValid
       ? "Sin precio disponible"
       : "Configura tu plan";
@@ -242,13 +640,6 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       : priceVariation > 0
       ? "Escenario optimista"
       : "Escenario conservador";
-
-  const monthlyFactor = frequency === "weekly" ? 4.345 : 1;
-  const monthlyPayoutBTC = plan.isValid && totalBTCValue > 0 ? totalBTCValue * monthlyFactor : 0;
-  const monthlyPayoutEUR = plan.isValid && price ? monthlyPayoutBTC * price : null;
-  const projectedMonthlyPayoutEUR =
-    plan.isValid && projectedPrice ? monthlyPayoutBTC * projectedPrice : null;
-  const safeMonthlyTarget = Math.max(monthlyTarget, 0);
   const targetCoveragePercent =
     safeMonthlyTarget > 0 && monthlyPayoutEUR !== null
       ? clamp((monthlyPayoutEUR / safeMonthlyTarget) * 100, 0, 200)
@@ -325,57 +716,30 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
   }, [walletError, btcError, dateError, frequencyError]);
 
   const schedule = useMemo(() => {
-    if (!plan.isValid || !selectedDate) {
+    if (!plan.isValid) {
       return [];
     }
 
-    const limitDate = new Date(selectedDate);
-    if (Number.isNaN(limitDate.getTime())) return [];
-
-    const items = [];
-    const currentDate = new Date();
-    const amountPerPeriod = plan.perPeriodBtc;
-    if (amountPerPeriod <= 0) return [];
-    const eurPerPeriod = plan.perPeriodEur && plan.perPeriodEur > 0 ? plan.perPeriodEur : null;
-    const projectedPerPeriod =
-      plan.projectedPerPeriodEur && plan.projectedPerPeriodEur > 0 ? plan.projectedPerPeriodEur : null;
-
-    for (let index = 0; index < Math.min(plan.periods, SCHEDULE_PREVIEW_LIMIT); index += 1) {
-      const payoutDate = new Date(currentDate);
-      if (frequency === "weekly") {
-        payoutDate.setDate(payoutDate.getDate() + 7 * (index + 1));
-      } else {
-        payoutDate.setMonth(payoutDate.getMonth() + (index + 1));
-      }
-
-      if (payoutDate > limitDate) break;
-
-      const remaining = Math.max(plan.withdrawable - amountPerPeriod * (index + 1), 0);
-      const formattedDate = payoutDate.toLocaleDateString("es-ES", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-
-      items.push({
-        id: `${payoutDate.toISOString()}-${index}`,
-        label: formattedDate,
-        amount: amountPerPeriod,
-        amountLabel: btcFormatter.format(amountPerPeriod),
-        eurLabel: eurPerPeriod !== null ? eurFormatter.format(eurPerPeriod) : "—",
-        projectedLabel: projectedPerPeriod !== null ? eurFormatter.format(projectedPerPeriod) : "—",
-        remainingLabel: btcFormatter.format(remaining),
-        raw: {
-          amount: amountPerPeriod,
-          eur: eurPerPeriod,
-          projected: projectedPerPeriod,
-          label: formattedDate,
-        },
-      });
-    }
-
-    return items;
-  }, [frequency, plan, selectedDate]);
+    return plan.schedule.slice(0, SCHEDULE_PREVIEW_LIMIT).map((event) => ({
+      id: `${event.index}-${event.label}`,
+      label: event.label,
+      amount: event.amountBtc,
+      amountLabel: btcFormatter.format(event.amountBtc),
+      eurLabel:
+        positiveOrNull(event.amountEur) !== null ? eurFormatter.format(event.amountEur) : "—",
+      projectedLabel:
+        positiveOrNull(event.projectedAmountEur) !== null
+          ? eurFormatter.format(event.projectedAmountEur)
+          : "—",
+      remainingLabel: btcFormatter.format(event.remainingBtc),
+      raw: {
+        amount: event.amountBtc,
+        eur: event.amountEur,
+        projected: event.projectedAmountEur,
+        label: event.label,
+      },
+    }));
+  }, [plan]);
 
   const scheduleAvailable = schedule.length > 0;
 
@@ -389,6 +753,15 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       };
     }
 
+    if (planUsagePercent >= 95) {
+      return {
+        tone: "warning",
+        title: "Plan muy agresivo",
+        description:
+          "Tu estrategia consume prácticamente todo el saldo disponible. Ajusta los parámetros o reserva más BTC para mantener un margen de seguridad.",
+      };
+    }
+
     if (withdrawablePercent >= 70) {
       return {
         tone: "warning",
@@ -398,22 +771,32 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       };
     }
 
-    if (withdrawablePercent <= 30) {
+    if (planUsagePercent <= 60) {
       return {
         tone: "positive",
-        title: "Margen disponible",
-        description:
-          "Tu porcentaje de retiros es moderado. Podrías añadir un escenario alternativo con un ritmo más ambicioso para comparar resultados.",
+        title: "Ritmo sostenible",
+        description: `Retiras aproximadamente el ${Math.round(
+          planUsagePercent
+        )}% del saldo disponible. ${
+          activeStrategyDefinition?.label ?? "Esta estrategia"
+        } deja margen para probar escenarios alternativos.`,
       };
     }
 
     return {
       tone: "balanced",
-      title: "Estrategia equilibrada",
-      description:
-        "Tu planificación reparte los retiros de forma estable. Guarda este escenario y ajusta el slider de precio para evaluar posibles movimientos del mercado.",
+      title: "Estrategia en curso",
+      description: `${
+        activeStrategyDefinition?.label ?? "La estrategia seleccionada"
+      } reparte los retiros de forma constante. Guarda este escenario y compara otros ajustes de parámetros.`,
     };
-  }, [plan.isValid, withdrawable, withdrawablePercent]);
+  }, [
+    plan.isValid,
+    withdrawable,
+    planUsagePercent,
+    withdrawablePercent,
+    activeStrategyDefinition,
+  ]);
 
   const adviceToneClass = `calculator__advice--${strategyTip.tone}`;
 
@@ -421,12 +804,15 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     if (!scheduleAvailable || typeof window === "undefined") return;
 
     const csvHeader = "Fecha,BTC,Valor EUR actual,Valor EUR escenario\n";
-    const csvRows = schedule
-      .map(({ raw }) => {
-        const amount = raw.amount.toFixed(8);
-        const eur = raw.eur !== null ? raw.eur.toFixed(2) : "";
-        const projected = raw.projected !== null ? raw.projected.toFixed(2) : "";
-        return `${raw.label},${amount},${eur},${projected}`;
+    const csvRows = plan.schedule
+      .map((event) => {
+        const amount = event.amountBtc.toFixed(8);
+        const eur = positiveOrNull(event.amountEur) !== null ? event.amountEur.toFixed(2) : "";
+        const projected =
+          positiveOrNull(event.projectedAmountEur) !== null
+            ? event.projectedAmountEur.toFixed(2)
+            : "";
+        return `${event.label},${amount},${eur},${projected}`;
       })
       .join("\n");
 
@@ -445,12 +831,17 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     event.preventDefault();
     if (!profileName.trim()) return;
     const newProfile = {
-      id: createProfileId(),
+      id: generateProfileId(),
       name: profileName.trim(),
       walletValue,
       btcIntocableValue,
       selectedDate,
       frequency,
+      strategy,
+      strategyConfig: currentStrategyConfig,
+      globalStrategy: preparedGlobalStrategy,
+      priceVariation,
+      monthlyTarget: safeMonthlyTarget,
     };
     setProfiles((prev) => [newProfile, ...prev].slice(0, 5));
     setProfileName("");
@@ -461,6 +852,16 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     setBtcIntocableValue(profile.btcIntocableValue);
     setSelectedDate(profile.selectedDate);
     setFrequency(profile.frequency ?? "monthly");
+    const nextStrategy = ensureStrategyId(profile.strategy);
+    setStrategy(nextStrategy);
+    setStrategyConfigs((prev) => ({
+      ...prev,
+      [nextStrategy]: sanitizeStrategyConfig(nextStrategy, profile.strategyConfig),
+    }));
+    setGlobalStrategy(sanitizeGlobalStrategy(profile.globalStrategy));
+    const variation = clamp(Number(profile.priceVariation) || 0, VARIATION_MIN, VARIATION_MAX);
+    setPriceVariation(variation);
+    setMonthlyTarget(Number(profile.monthlyTarget) || 0);
   };
 
   const handleProfileDelete = (id) => {
@@ -715,18 +1116,99 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
           )}
         </div>
 
+        <section className="calculator__strategy" aria-labelledby="strategy-heading">
+          <div className="field">
+            <label htmlFor="strategy-select">Estrategia de retiros</label>
+            <select id="strategy-select" value={strategy} onChange={handleStrategyChange}>
+              {STRATEGY_DEFINITIONS.map((definition) => (
+                <option key={definition.id} value={definition.id}>
+                  {definition.label}
+                </option>
+              ))}
+            </select>
+            <p className="help">{activeStrategyDefinition?.description}</p>
+          </div>
+
+          {strategySpecificFields ? (
+            <div className="calculator__strategy-fields">{strategySpecificFields}</div>
+          ) : null}
+
+          <div className="calculator__strategy-global" aria-labelledby="strategy-global-heading">
+            <h4 id="strategy-global-heading">Parámetros globales</h4>
+            <div className="calculator__strategy-global-grid">
+              <div className="field">
+                <label htmlFor="strategy-fee">Comisión (%)</label>
+                <input
+                  id="strategy-fee"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={globalStrategy.feePercent ?? 0}
+                  onChange={handleFeeChange}
+                />
+                <p className="help">Aplicada después de cada retiro.</p>
+              </div>
+              <div className="field">
+                <label htmlFor="strategy-min-withdrawal">Mínimo por periodo (BTC)</label>
+                <input
+                  id="strategy-min-withdrawal"
+                  type="number"
+                  min="0"
+                  step="0.00000001"
+                  value={globalStrategy.minWithdrawal ?? ""}
+                  onChange={handleMinChange}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="strategy-max-withdrawal">Máximo por periodo (BTC)</label>
+                <input
+                  id="strategy-max-withdrawal"
+                  type="number"
+                  min="0"
+                  step="0.00000001"
+                  value={globalStrategy.maxWithdrawal ?? ""}
+                  onChange={handleMaxChange}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
         <div className="calculator__result">
-          <h3>{`Retiro ${periodLabel}`}</h3>
+          <h3>Próximo retiro</h3>
           <p className="calculator__result-value">
-            {plan.isValid && totalBTCValue > 0
-              ? `${btcFormatter.format(totalBTCValue)} BTC`
+            {plan.isValid && nextWithdrawalBTC > 0
+              ? `${btcFormatter.format(nextWithdrawalBTC)} BTC`
+              : plan.isValid
+              ? "Sin retiros programados"
               : "Configura tu plan"}
           </p>
           <p className="calculator__result-eur">
-            {totalEURValue !== null
-              ? eurFormatter.format(totalEURValue)
+            {nextWithdrawalEUR !== null
+              ? eurFormatter.format(nextWithdrawalEUR)
+              : nextWithdrawalBTC > 0
+              ? "Sin precio disponible"
               : "Añade precio o espera actualización"}
           </p>
+          {nextWithdrawalProjectedEUR !== null ? (
+            <p className="calculator__result-projected">
+              Escenario: {eurFormatter.format(nextWithdrawalProjectedEUR)}
+            </p>
+          ) : null}
+          <div className="calculator__result-average">
+            <h4>Retiro medio</h4>
+            <p>
+              {plan.isValid && averageWithdrawalBTC > 0
+                ? `${btcFormatter.format(averageWithdrawalBTC)} BTC`
+                : "Sin datos"}
+            </p>
+            <p>
+              {averageWithdrawalEUR !== null
+                ? eurFormatter.format(averageWithdrawalEUR)
+                : "Añade precio o espera actualización"}
+            </p>
+          </div>
         </div>
 
         <div className="calculator__insights">
