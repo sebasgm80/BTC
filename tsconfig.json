@@ -13,7 +13,11 @@
     "moduleResolution": "Node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "react-router-dom": ["src/vendor/react-router-dom"]
+    }
   },
   "include": ["src"],
   "references": []
