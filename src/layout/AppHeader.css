@@ -1,0 +1,136 @@
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(18px);
+  background: rgba(8, 12, 24, 0.78);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.app-header__inner {
+  width: min(1100px, calc(100% - 2.5rem));
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 4.25rem;
+  padding: 0.85rem 0;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-header__logo {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, rgba(247, 147, 26, 0.35), rgba(247, 147, 26, 0.15));
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #f7931a;
+}
+
+.app-header__title {
+  display: block;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.app-header__subtitle {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+
+.app-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.app-header__link {
+  position: relative;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.app-header__link:hover,
+.app-header__link:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  text-decoration: none;
+}
+
+.app-header__link.active {
+  background: rgba(247, 147, 26, 0.22);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(247, 147, 26, 0.4);
+}
+
+.app-header__link[aria-current='page'] {
+  background: rgba(247, 147, 26, 0.22);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(247, 147, 26, 0.4);
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+}
+
+.app-header__price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 160px;
+}
+
+.app-header__price-value {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.app-header__price-value--error {
+  color: #ff8c8c;
+}
+
+.app-header__price-meta {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.app-header__refresh {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .app-header__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .app-header__nav {
+    justify-content: center;
+  }
+
+  .app-header__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-header__price {
+    align-items: flex-start;
+  }
+}
