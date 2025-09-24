@@ -1,7 +1,7 @@
 .calculator {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
 
 .calculator__header {
@@ -19,14 +19,15 @@
 .calculator__price {
   display: grid;
   gap: 0.35rem;
-  padding: 1rem;
-  border-radius: 1rem;
+  padding: 1.25rem;
+  border-radius: 1.1rem;
   background: rgba(255, 255, 255, 0.04);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .calculator__price-value {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
 }
 
 .calculator__price-source,
@@ -37,10 +38,11 @@
 }
 
 .calculator__errors {
-  border: 1px solid #ff5f5f;
-  border-radius: 0.8rem;
-  padding: 1rem;
+  border: 1px solid rgba(255, 95, 95, 0.6);
+  border-radius: 0.95rem;
+  padding: 1rem 1.25rem;
   background: rgba(255, 95, 95, 0.1);
+  box-shadow: 0 12px 24px rgba(255, 95, 95, 0.12);
 }
 
 .calculator__errors h3 {
@@ -55,24 +57,34 @@
 
 .calculator__form {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
+}
+
+.field label {
+  font-weight: 600;
 }
 
 .field input,
 .field select,
 .calculator__profile-form input {
   width: 100%;
-  padding: 0.6rem 0.75rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.02);
   color: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field input::placeholder,
+.calculator__profile-form input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .field input:focus,
@@ -80,6 +92,7 @@
 .calculator__profile-form input:focus {
   outline: 2px solid rgba(247, 147, 26, 0.6);
   border-color: transparent;
+  box-shadow: 0 0 0 4px rgba(247, 147, 26, 0.15);
 }
 
 .error {
@@ -96,11 +109,12 @@
 
 .calculator__result {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.35rem;
   text-align: center;
-  padding: 1.5rem;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, rgba(247, 147, 26, 0.15), rgba(247, 147, 26, 0.05));
+  padding: 1.75rem;
+  border-radius: 1.1rem;
+  background: linear-gradient(135deg, rgba(247, 147, 26, 0.2), rgba(247, 147, 26, 0.05));
+  box-shadow: inset 0 0 0 1px rgba(247, 147, 26, 0.25);
 }
 
 .calculator__result h3 {
@@ -112,7 +126,7 @@
 }
 
 .calculator__result-value {
-  font-size: 2rem;
+  font-size: 2.1rem;
   margin: 0;
   font-weight: 700;
 }
@@ -121,6 +135,84 @@
   margin: 0;
   font-size: 1.1rem;
   color: var(--muted-foreground);
+}
+
+.calculator__insights {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.calculator__progress {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.calculator__progress-bar {
+  display: flex;
+  align-items: stretch;
+  height: 0.8rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.calculator__progress-segment {
+  display: block;
+  height: 100%;
+  transition: flex-basis 0.4s ease, flex-grow 0.4s ease;
+}
+
+.calculator__progress-segment--withdrawable {
+  background: linear-gradient(90deg, #f7931a, #ffb347);
+}
+
+.calculator__progress-segment--protected {
+  background: linear-gradient(90deg, rgba(138, 92, 246, 0.95), rgba(93, 139, 255, 0.85));
+}
+
+.calculator__progress-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.calculator__progress-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.calculator__progress-chip--withdrawable::before,
+.calculator__progress-chip--protected::before {
+  content: '';
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.calculator__progress-chip--withdrawable::before {
+  background: linear-gradient(135deg, #f7931a, #ffb347);
+}
+
+.calculator__progress-chip--protected::before {
+  background: linear-gradient(135deg, rgba(138, 92, 246, 0.95), rgba(93, 139, 255, 0.85));
+}
+
+.calculator__insights-note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(245, 245, 245, 0.75);
 }
 
 .calculator__profiles {
@@ -154,9 +246,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1rem;
+  padding: 1.1rem;
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .calculator__profile-item h4 {
@@ -197,6 +290,18 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media (min-width: 900px) {
+  .calculator__form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .calculator__result,
+  .calculator__insights {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 768px) {

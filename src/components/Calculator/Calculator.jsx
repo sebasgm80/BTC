@@ -161,6 +161,14 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
   };
   const totalBTCValue = calculateTotalBTCValue();
   const totalEURValue = price ? totalBTCValue * price : 0;
+  const safeWalletValue = walletValue > 0 ? walletValue : 0;
+  const safeProtectedValue = Math.max(btcIntocableValue, 0);
+  const withdrawable = Math.max(safeWalletValue - safeProtectedValue, 0);
+  const preserved = Math.min(safeProtectedValue, safeWalletValue);
+  const withdrawablePercent = safeWalletValue > 0 ? (withdrawable / safeWalletValue) * 100 : 0;
+  const preservedPercent = safeWalletValue > 0 ? (preserved / safeWalletValue) * 100 : 0;
+  const withdrawablePercentLabel = Math.round(withdrawablePercent);
+  const preservedPercentLabel = Math.round(preservedPercent);
 
   const aggregateErrors = useMemo(() => {
     const unique = new Set(
@@ -330,6 +338,45 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
           <h3>{`Retiro ${periodLabel}`}</h3>
           <p className="calculator__result-value">{btcFormatter.format(totalBTCValue)} BTC</p>
           <p className="calculator__result-eur">{eurFormatter.format(totalEURValue)}</p>
+        </div>
+
+        <div className="calculator__insights">
+          <div
+            className="calculator__progress"
+            role="group"
+            aria-label="Distribución actual de tu cartera"
+          >
+            <div
+              className="calculator__progress-bar"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={withdrawablePercentLabel}
+              aria-valuetext={`Puedes retirar ${btcFormatter.format(withdrawable)} BTC, que representan el ${withdrawablePercentLabel}% de tu cartera.`}
+            >
+              <span
+                className="calculator__progress-segment calculator__progress-segment--withdrawable"
+                style={{ flexBasis: `${withdrawablePercent}%`, flexGrow: withdrawablePercent }}
+              />
+              <span
+                className="calculator__progress-segment calculator__progress-segment--protected"
+                style={{ flexBasis: `${preservedPercent}%`, flexGrow: preservedPercent }}
+              />
+            </div>
+            <div className="calculator__progress-legend">
+              <span className="calculator__progress-chip calculator__progress-chip--withdrawable">
+                Retirable: {btcFormatter.format(withdrawable)} BTC ({withdrawablePercentLabel}%)
+              </span>
+              <span className="calculator__progress-chip calculator__progress-chip--protected">
+                Resguardo: {btcFormatter.format(preserved)} BTC ({preservedPercentLabel}%)
+              </span>
+            </div>
+          </div>
+          <p className="calculator__insights-note">
+            {withdrawable > 0
+              ? `Tu estrategia libera ${btcFormatter.format(withdrawable)} BTC para retiros escalonados.`
+              : 'Ajusta los valores para liberar BTC retirables y visualizar un plan de retiros.'}
+          </p>
         </div>
       </form>
 

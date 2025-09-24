@@ -49,6 +49,7 @@ export function Dashboard({
   const formattedVariation = `${variation >= 0 ? '+' : ''}${numberFormatter.format(
     variation
   )}%`;
+  const recentHistory = hasHistory ? [...safeRawHistory].slice(-4).reverse() : [];
 
   return (
     <section className="dashboard card" aria-labelledby="dashboard-heading">
@@ -122,7 +123,17 @@ export function Dashboard({
                 tickFormatter={value => currencyFormatter.format(value)}
                 width={90}
               />
-              <Tooltip formatter={tooltipFormatter} labelClassName="dashboard__tooltip-label" />
+              <Tooltip
+                formatter={tooltipFormatter}
+                labelClassName="dashboard__tooltip-label"
+                contentStyle={{
+                  background: 'rgba(9, 12, 24, 0.85)',
+                  borderRadius: '0.75rem',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  boxShadow: '0 18px 28px rgba(0, 0, 0, 0.35)',
+                  color: '#f5f5f5',
+                }}
+              />
               <Area type="monotone" dataKey="price" stroke="#f7931a" fill="url(#priceGradient)" />
             </AreaChart>
           </ResponsiveContainer>
@@ -132,6 +143,37 @@ export function Dashboard({
           </p>
         )}
       </div>
+
+      {recentHistory.length > 0 ? (
+        <section className="dashboard__recent" aria-label="Últimas capturas del precio">
+          <h3>Últimos movimientos</h3>
+          <ul className="dashboard__recent-list">
+            {recentHistory.map((entry, index) => {
+              const previous = recentHistory[index + 1];
+              const diff = previous?.price ? entry.price - previous.price : 0;
+              const diffFormatted = numberFormatter.format(Math.abs(diff));
+              const diffLabel = `${diff >= 0 ? '+' : '-'}${diffFormatted}`;
+              const diffClass =
+                diff === 0 ? '' : diff > 0 ? 'dashboard__chip--positive' : 'dashboard__chip--negative';
+              const chipContent = previous
+                ? diff === 0
+                  ? 'Sin cambio'
+                  : `${diffLabel} EUR`
+                : 'Dato inicial';
+
+              return (
+                <li key={entry.time} className="dashboard__recent-item">
+                  <span className="dashboard__recent-time">
+                    {new Date(entry.time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="dashboard__recent-value">{currencyFormatter.format(entry.price)}</span>
+                  <span className={`dashboard__chip ${diffClass}`}>{chipContent}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <footer className="dashboard__footer">
         <button type="button" onClick={onClearHistory} className="secondary-button">
