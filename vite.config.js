@@ -11,7 +11,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      'react-router-dom': resolve(__dirname, 'src/vendor/react-router-dom.ts'),
+      'react-router-dom': resolve(__dirname, 'src/vendor/react-router-dom.tsx'),
     },
   },
 })
