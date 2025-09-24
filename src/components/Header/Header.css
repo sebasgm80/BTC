@@ -246,6 +246,88 @@
 
   .header__badge {
     width: 100%;
+    min-width: 0;
+  }
+
+  .header__refresh {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .header__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .header__brand {
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+
+  .header__controls {
+    width: 100%;
+    justify-content: space-between;
+    align-items: stretch;
+  }
+
+  .header__menu-toggle {
+    margin-left: auto;
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 640px) {
+  .header__brand-copy h1 {
+    font-size: 1.25rem;
+  }
+
+  .header__brand-copy p {
+    font-size: 0.82rem;
+  }
+
+  .header__meta {
+    display: grid;
+    gap: 0.85rem;
+    position: static;
+    min-width: 0;
+    width: 100%;
+    margin-top: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 1rem;
+    background: transparent;
+    box-shadow: none;
+    opacity: 0;
+    pointer-events: none;
+    transform: none;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease;
+  }
+
+  .header__meta--open {
+    opacity: 1;
+    pointer-events: auto;
+    max-height: 640px;
+    margin-top: 0.6rem;
+    padding: 0.85rem;
+    background: rgba(8, 12, 24, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1rem;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.38);
+  }
+
+  .header__actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .header__status {
+    display: grid;
+    gap: 0.75rem;
+    width: 100%;
   }
 
   .header__refresh {
@@ -264,5 +346,32 @@
 
   .header__brand-copy p {
     font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header__inner {
+    padding: 0.6rem 0.85rem;
+  }
+
+  .header__brand {
+    gap: 0.55rem;
+  }
+
+  .header__brand-copy h1 {
+    font-size: 1.15rem;
+  }
+
+  .header__brand-copy p {
+    font-size: 0.78rem;
+  }
+
+  .header__badge-label {
+    font-size: 0.88rem;
+  }
+
+  .header__badge-source,
+  .header__badge-time {
+    font-size: 0.72rem;
   }
 }

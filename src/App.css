@@ -155,8 +155,8 @@
 
 @media (max-width: 600px) {
   .content-grid {
-    width: calc(100% - 1.5rem);
-    padding: 1.85rem 0 3.25rem;
+    width: calc(100% - 1.35rem);
+    padding: 1.75rem 0 3rem;
   }
 
   .content-grid::before {
@@ -168,9 +168,28 @@
   }
 }
 
+@media (max-width: 520px) {
+  .content-grid {
+    width: calc(100% - 1.1rem);
+    gap: 1.6rem;
+    padding: 1.6rem 0 2.75rem;
+  }
+
+  .content-grid::before {
+    inset: 0.35rem;
+    border-radius: 1.5rem;
+  }
+
+  .card {
+    padding: 1.35rem;
+    border-radius: 1.25rem;
+  }
+}
+
 @media (max-width: 460px) {
   .card {
-    padding: 1.3rem;
+    padding: 1.2rem;
+    border-radius: 1.15rem;
   }
 }
 
