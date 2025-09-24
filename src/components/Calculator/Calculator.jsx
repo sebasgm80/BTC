@@ -1,16 +1,43 @@
 import { UseBTCPrice } from "../../hooks/btc";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { differenceInMonths } from "date-fns";
 import "./Calculator.css";
 
 
 
 export function Calculator() {
+    const readNumberFromStorage = (key) => {
+      if (typeof window === "undefined") return 0;
+      const storedValue = window.localStorage.getItem(key);
+      const parsedValue = Number(storedValue);
+      return Number.isFinite(parsedValue) ? parsedValue : 0;
+    };
+
+    const readStringFromStorage = (key) => {
+      if (typeof window === "undefined") return "";
+      return window.localStorage.getItem(key) ?? "";
+    };
+
     // Estados para almacenar los valores de los inputs
-    const [walletValue, setWalletValue] = useState(0);
-    const [btcIntocableValue, setBtcIntocableValue] = useState(0);
-    const [selectedDate, setSelectedDate] = useState("");
+    const [walletValue, setWalletValue] = useState(() => readNumberFromStorage("walletValue"));
+    const [btcIntocableValue, setBtcIntocableValue] = useState(() => readNumberFromStorage("btcIntocableValue"));
+    const [selectedDate, setSelectedDate] = useState(() => readStringFromStorage("selectedDate"));
     const { price: btcPrice, loading, error } = UseBTCPrice();
+
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem("walletValue", String(walletValue));
+    }, [walletValue]);
+
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem("btcIntocableValue", String(btcIntocableValue));
+    }, [btcIntocableValue]);
+
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem("selectedDate", selectedDate);
+    }, [selectedDate]);
 
     // Función para manejar el cambio en el input de la wallet
     const handleWalletChange = (event) => {
