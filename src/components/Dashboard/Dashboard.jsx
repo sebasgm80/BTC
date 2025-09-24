@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import './Dashboard.css';
 import {
   Area,
@@ -27,6 +28,8 @@ const numberFormatter = new Intl.NumberFormat('es-ES', {
 
 const tooltipFormatter = value => currencyFormatter.format(value);
 
+const REFRESH_INTERVAL_SECONDS = 60;
+
 export function Dashboard({
   username = 'Guest',
   avatarUrl = 'https://i.pravatar.cc/100',
@@ -50,6 +53,111 @@ export function Dashboard({
     variation
   )}%`;
   const recentHistory = hasHistory ? [...safeRawHistory].slice(-4).reverse() : [];
+  const [secondsSinceUpdate, setSecondsSinceUpdate] = useState(0);
+
+  useEffect(() => {
+    if (!lastUpdated) {
+      setSecondsSinceUpdate(0);
+      return undefined;
+    }
+
+    const updateCounter = () => {
+      const diff = Math.max(
+        0,
+        Math.floor((Date.now() - new Date(lastUpdated).getTime()) / 1000)
+      );
+      setSecondsSinceUpdate(diff);
+    };
+
+    updateCounter();
+    const interval = window.setInterval(updateCounter, 1000);
+    return () => window.clearInterval(interval);
+  }, [lastUpdated]);
+
+  const timeToNextRefresh = useMemo(() => {
+    if (!lastUpdated) return null;
+    const modulo = secondsSinceUpdate % REFRESH_INTERVAL_SECONDS;
+    return modulo === 0 ? REFRESH_INTERVAL_SECONDS : REFRESH_INTERVAL_SECONDS - modulo;
+  }, [secondsSinceUpdate, lastUpdated]);
+
+  const refreshProgress = useMemo(() => {
+    if (!lastUpdated || timeToNextRefresh === null) return 0;
+    return ((REFRESH_INTERVAL_SECONDS - timeToNextRefresh) / REFRESH_INTERVAL_SECONDS) * 100;
+  }, [lastUpdated, timeToNextRefresh]);
+
+  const elapsedLabel = useMemo(() => {
+    if (!lastUpdated) return 'Sin datos';
+    const minutes = Math.floor(secondsSinceUpdate / 60);
+    const seconds = secondsSinceUpdate % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }, [lastUpdated, secondsSinceUpdate]);
+
+  const nextRefreshLabel = useMemo(() => {
+    if (!timeToNextRefresh) return 'Sin datos';
+    return `${timeToNextRefresh}s`;
+  }, [timeToNextRefresh]);
+
+  const highestPrice = useMemo(() => {
+    if (!hasHistory) return null;
+    return safeRawHistory.reduce((max, entry) => (entry.price > max ? entry.price : max), 0);
+  }, [hasHistory, safeRawHistory]);
+
+  const lowestPrice = useMemo(() => {
+    if (!hasHistory || safeRawHistory.length === 0) return null;
+    return safeRawHistory.reduce((min, entry) => (entry.price < min ? entry.price : min), Infinity);
+  }, [hasHistory, safeRawHistory]);
+
+  const averagePrice = useMemo(() => {
+    if (!hasHistory || safeRawHistory.length === 0) return null;
+    const sum = safeRawHistory.reduce((total, entry) => total + entry.price, 0);
+    return sum / safeRawHistory.length;
+  }, [hasHistory, safeRawHistory]);
+
+  const insights = useMemo(
+    () => [
+      {
+        label: 'Precio medio capturado',
+        value: averagePrice ? currencyFormatter.format(averagePrice) : 'Sin historial',
+      },
+      {
+        label: 'Pico registrado',
+        value: highestPrice ? currencyFormatter.format(highestPrice) : 'Sin historial',
+      },
+      {
+        label: 'Mínimo registrado',
+        value:
+          lowestPrice && lowestPrice !== Infinity
+            ? currencyFormatter.format(lowestPrice)
+            : 'Sin historial',
+      },
+      {
+        label: 'Capturas guardadas',
+        value: hasHistory ? `${safeRawHistory.length}` : '0',
+      },
+    ],
+    [averagePrice, hasHistory, highestPrice, lowestPrice, safeRawHistory.length]
+  );
+
+  const resources = useMemo(
+    () => [
+      {
+        title: 'Guía DCA de Binance Academy',
+        description: 'Buenas prácticas para automatizar compras y ventas periódicas.',
+        href: 'https://academy.binance.com/es/articles/dollar-cost-averaging',
+      },
+      {
+        title: 'Gestión de riesgo por Coinbase',
+        description: 'Recomendaciones para equilibrar carteras cripto-volátiles.',
+        href: 'https://www.coinbase.com/learn/crypto-basics/what-is-portfolio-rebalancing',
+      },
+      {
+        title: 'Índice de miedo y codicia',
+        description: 'Consulta el pulso del mercado para complementar tus escenarios.',
+        href: 'https://alternative.me/crypto/fear-and-greed-index/',
+      },
+    ],
+    []
+  );
 
   return (
     <section className="dashboard card" aria-labelledby="dashboard-heading">
@@ -88,6 +196,10 @@ export function Dashboard({
                 })
               : 'Sin datos'}
           </dd>
+        </div>
+        <div>
+          <dt>Tiempo transcurrido</dt>
+          <dd>{elapsedLabel}</dd>
         </div>
         <div>
           <dt>Tendencia</dt>
@@ -144,6 +256,28 @@ export function Dashboard({
         )}
       </div>
 
+      <section className="dashboard__refresh" aria-label="Próxima actualización automática">
+        <div className="dashboard__refresh-header">
+          <h3>Sincronización automática</h3>
+          <span className="dashboard__refresh-time">{nextRefreshLabel}</span>
+        </div>
+        <div className="dashboard__refresh-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(refreshProgress)}>
+          <span style={{ width: `${refreshProgress}%` }} />
+        </div>
+        <p className="help">
+          Este panel se actualiza cada {REFRESH_INTERVAL_SECONDS} segundos. Usa el botón de refresco del encabezado para forzar una nueva lectura.
+        </p>
+      </section>
+
+      <section className="dashboard__insights" aria-label="Resumen del historial">
+        {insights.map((item) => (
+          <article key={item.label}>
+            <h3>{item.label}</h3>
+            <p>{item.value}</p>
+          </article>
+        ))}
+      </section>
+
       {recentHistory.length > 0 ? (
         <section className="dashboard__recent" aria-label="Últimas capturas del precio">
           <h3>Últimos movimientos</h3>
@@ -180,6 +314,20 @@ export function Dashboard({
           Limpiar historial
         </button>
       </footer>
+
+      <section className="dashboard__resources" aria-label="Recursos recomendados">
+        <h3>Inspiración para tu estrategia</h3>
+        <ul>
+          {resources.map((resource) => (
+            <li key={resource.href}>
+              <a href={resource.href} target="_blank" rel="noreferrer">
+                <span>{resource.title}</span>
+                <p>{resource.description}</p>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
     </section>
   );
 }
