@@ -19,7 +19,7 @@ import {
   readProfiles,
   writeProfiles,
   dispatchPlanUpdate,
-  createProfileId,
+  createProfileId as generateProfileId,
 } from "../../lib/calculatorStorage";
 
 
@@ -52,14 +52,10 @@ const {
   monthlyTarget: MONTHLY_TARGET_STORAGE_KEY,
 } = STORAGE_KEYS;
 
-
 const SCHEDULE_PREVIEW_LIMIT = 12;
 
 const positiveOrNull = (value) =>
   Number.isFinite(value) && value > 0 ? value : null;
-
-
-
 
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -839,7 +835,7 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     event.preventDefault();
     if (!profileName.trim()) return;
     const newProfile = {
-      id: createProfileId(),
+      id: generateProfileId(),
       name: profileName.trim(),
       walletValue,
       btcIntocableValue,
