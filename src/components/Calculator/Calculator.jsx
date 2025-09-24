@@ -16,16 +16,12 @@ import {
   VARIATION_MIN,
   VARIATION_MAX,
 
-
-
-  createProfileId,
-
-
   readProfiles,
   writeProfiles,
   dispatchPlanUpdate,
+  createProfileId,
 } from "../../lib/calculatorStorage";
-import { createProfileId } from "../../lib/id";
+
 
 const sourceLabels = {
   coindesk: "CoinDesk",
@@ -63,20 +59,9 @@ const positiveOrNull = (value) =>
   Number.isFinite(value) && value > 0 ? value : null;
 
 
-const SCHEDULE_PREVIEW_LIMIT = 12;
 
-const positiveOrNull = (value) =>
-  Number.isFinite(value) && value > 0 ? value : null;
 
-const SCHEDULE_PREVIEW_LIMIT = 12;
 
-const positiveOrNull = (value) =>
-  Number.isFinite(value) && value > 0 ? value : null;
-
-const SCHEDULE_PREVIEW_LIMIT = 12;
-
-const positiveOrNull = (value) =>
-  Number.isFinite(value) && value > 0 ? value : null;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 export function Calculator({ price, source, loading, error, lastUpdated, onRefresh }) {

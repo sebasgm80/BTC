@@ -11,13 +11,47 @@ import {
   sanitizeStrategyConfig,
   clamp,
 } from './strategyCatalog';
-import { createProfileId } from './id';
 
 
+const getGlobalCrypto = (): Crypto | undefined => {
+  if (typeof globalThis === 'undefined') {
+    return undefined;
+  }
+  const candidate = (globalThis as typeof globalThis & { crypto?: Crypto }).crypto;
+  return candidate;
+};
 
-import { createProfileId } from './id';
+const bytesToUuid = (bytes: Uint8Array): string => {
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0'));
+  return [
+    hex.slice(0, 4).join(''),
+    hex.slice(4, 6).join(''),
+    hex.slice(6, 8).join(''),
+    hex.slice(8, 10).join(''),
+    hex.slice(10, 16).join(''),
+  ].join('-');
+};
 
-export { createProfileId } from './id';
+export function createProfileId(prefix = 'profile'): string {
+  const cryptoObj = getGlobalCrypto();
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return `${prefix}-${cryptoObj.randomUUID()}`;
+  }
+
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const bytes = cryptoObj.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    return `${prefix}-${bytesToUuid(bytes)}`;
+  }
+
+  const timestamp = Date.now().toString(36);
+  const randomPart =
+    typeof Math.random === 'function' ? Math.random().toString(36).slice(2) : 'fallback';
+  return `${prefix}-${timestamp}-${randomPart}`;
+}
+
+
 export type FrequencyOption = 'weekly' | 'monthly';
 
 export type StoredProfile = {
@@ -51,6 +85,7 @@ export const PLAN_UPDATE_EVENT = 'btc-plan-updated';
 export const VARIATION_MIN = -50;
 export const VARIATION_MAX = 60;
 export const MAX_PROFILES = 5;
+
 
 
 const canUseCrypto =
