@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import './Dashboard.css';
 import {
   Area,
@@ -70,6 +70,150 @@ const safeParseTargets = value => {
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+const PLAN_UPDATE_EVENT = 'btc-plan-updated';
+
+const PLAN_STORAGE_KEYS = {
+  wallet: 'walletValue',
+  protected: 'btcIntocableValue',
+  date: 'selectedDate',
+  frequency: 'frequency',
+  monthlyTarget: 'btc-monthly-target',
+  variation: 'btc-price-variation',
+};
+
+const readPlanFromStorage = () => {
+  if (typeof window === 'undefined') {
+    return {
+      walletValue: 0,
+      protectedValue: 0,
+      selectedDate: '',
+      frequency: 'monthly',
+      monthlyTarget: 0,
+      variation: 0,
+    };
+  }
+
+  const walletValue = Number(window.localStorage.getItem(PLAN_STORAGE_KEYS.wallet)) || 0;
+  const protectedValue = Number(window.localStorage.getItem(PLAN_STORAGE_KEYS.protected)) || 0;
+  const selectedDate = window.localStorage.getItem(PLAN_STORAGE_KEYS.date) || '';
+  const storedFrequency = window.localStorage.getItem(PLAN_STORAGE_KEYS.frequency);
+  const frequency = storedFrequency === 'weekly' ? 'weekly' : 'monthly';
+  const monthlyTarget = Number(window.localStorage.getItem(PLAN_STORAGE_KEYS.monthlyTarget)) || 0;
+  const variation = Number(window.localStorage.getItem(PLAN_STORAGE_KEYS.variation)) || 0;
+
+  return {
+    walletValue,
+    protectedValue,
+    selectedDate,
+    frequency,
+    monthlyTarget,
+    variation,
+  };
+};
+
+const getPeriodCount = (selectedDate, frequency) => {
+  if (!selectedDate) return 0;
+  const now = new Date();
+  const target = new Date(selectedDate);
+  if (Number.isNaN(target.getTime()) || target <= now) return 0;
+
+  if (frequency === 'weekly') {
+    const diffMs = target.getTime() - now.getTime();
+    return Math.max(1, Math.ceil(diffMs / (7 * 24 * 60 * 60 * 1000)));
+  }
+
+  const yearDiff = target.getFullYear() - now.getFullYear();
+  const monthDiff = target.getMonth() - now.getMonth();
+  let diff = yearDiff * 12 + monthDiff;
+
+  if (target.getDate() > now.getDate()) {
+    diff += 1;
+  }
+
+  return Math.max(diff, 1);
+};
+
+const computePlanSummary = (plan, price) => {
+  const safeWallet = Math.max(plan.walletValue ?? 0, 0);
+  const safeProtected = clamp(Math.max(plan.protectedValue ?? 0, 0), 0, safeWallet);
+  const withdrawable = Math.max(safeWallet - safeProtected, 0);
+  const periodCount = getPeriodCount(plan.selectedDate, plan.frequency);
+  const hasPlan = withdrawable > 0 && periodCount > 0;
+  const perPeriodBtc = hasPlan ? withdrawable / periodCount : 0;
+  const perPeriodEur = price ? perPeriodBtc * price : null;
+  const monthlyBtc = plan.frequency === 'weekly' ? perPeriodBtc * 4.345 : perPeriodBtc;
+  const monthlyEur = price ? monthlyBtc * price : null;
+  const monthlyTarget = Math.max(plan.monthlyTarget ?? 0, 0);
+  const coveragePercent =
+    monthlyTarget > 0 && monthlyEur !== null
+      ? clamp((monthlyEur / monthlyTarget) * 100, 0, 200)
+      : monthlyEur !== null
+      ? clamp(monthlyEur > 0 ? 100 : 0, 0, 200)
+      : 0;
+  const projectedPrice = price ? price * (1 + (plan.variation ?? 0) / 100) : null;
+  const projectedMonthlyEur = projectedPrice ? monthlyBtc * projectedPrice : null;
+  const gap = monthlyEur !== null ? monthlyEur - monthlyTarget : null;
+  const selectedDateLabel = plan.selectedDate
+    ? new Date(plan.selectedDate).toLocaleDateString('es-ES', {
+        month: 'short',
+        year: 'numeric',
+      })
+    : null;
+
+  let status;
+  if (!hasPlan) {
+    status = {
+      tone: 'info',
+      title: 'Completa tu plan',
+      description:
+        'Ajusta la fecha final y la reserva de BTC en el planificador para estimar una renta mensual personalizada.',
+    };
+  } else if (!monthlyTarget) {
+    status = {
+      tone: 'balanced',
+      title: 'Define un objetivo',
+      description:
+        'Añade un objetivo de renta mensual para visualizar si tu ritmo de retiros cumple con tus necesidades.',
+    };
+  } else if (gap !== null && gap >= 0) {
+    status = {
+      tone: gap > 0 ? 'positive' : 'balanced',
+      title: gap > 0 ? 'Objetivo cubierto' : 'Objetivo alcanzado',
+      description:
+        gap > 0
+          ? `Tu estrategia actual genera un extra de ${currencyFormatter.format(gap)} al mes sobre tu objetivo.`
+          : 'Tu estrategia actual coincide con la renta objetivo planificada.',
+    };
+  } else {
+    status = {
+      tone: 'warning',
+      title: 'Ajusta tu ritmo',
+      description:
+        gap !== null
+          ? `Necesitas ${currencyFormatter.format(Math.abs(gap))} adicionales al mes para cubrir tu objetivo.`
+          : 'Define más BTC retirables o amplía el plazo para acercarte a tu objetivo.',
+    };
+  }
+
+  return {
+    hasPlan,
+    withdrawable,
+    perPeriodBtc,
+    perPeriodEur,
+    monthlyBtc,
+    monthlyEur,
+    monthlyTarget,
+    coveragePercent,
+    projectedMonthlyEur,
+    gap,
+    status,
+    periodCount,
+    frequency: plan.frequency,
+    selectedDateLabel,
+    variation: plan.variation,
+  };
+};
+
 const formatIntervalLabel = seconds => {
   if (!seconds) return 'sin programación';
   const hours = Math.floor(seconds / 3600);
@@ -108,6 +252,98 @@ const formatElapsedLabel = seconds => {
   return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
+const useSecondsSince = lastUpdated => {
+  const [seconds, setSeconds] = useState(null);
+
+  useEffect(() => {
+    if (!lastUpdated || typeof window === 'undefined') {
+      setSeconds(null);
+      return undefined;
+    }
+
+    const lastUpdatedMs = new Date(lastUpdated).getTime();
+
+    const updateCounter = () => {
+      const diff = Math.max(0, Math.floor((Date.now() - lastUpdatedMs) / 1000));
+      setSeconds(diff);
+    };
+
+    updateCounter();
+    const interval = window.setInterval(updateCounter, 1000);
+    return () => window.clearInterval(interval);
+  }, [lastUpdated]);
+
+  return seconds;
+};
+
+const ElapsedTimeTicker = memo(({ lastUpdated }) => {
+  const seconds = useSecondsSince(lastUpdated);
+
+  if (!lastUpdated || seconds === null) {
+    return <span>Sin datos</span>;
+  }
+
+  return <span>{formatElapsedLabel(seconds)}</span>;
+});
+
+ElapsedTimeTicker.displayName = 'ElapsedTimeTicker';
+
+const AutoRefreshStatus = memo(({ lastUpdated, refreshIntervalSeconds }) => {
+  const secondsSinceUpdate = useSecondsSince(lastUpdated);
+
+  const timeToNextRefresh = useMemo(() => {
+    if (
+      !lastUpdated ||
+      !refreshIntervalSeconds ||
+      secondsSinceUpdate === null ||
+      secondsSinceUpdate === undefined
+    ) {
+      return null;
+    }
+    const modulo = secondsSinceUpdate % refreshIntervalSeconds;
+    return modulo === 0 ? refreshIntervalSeconds : refreshIntervalSeconds - modulo;
+  }, [lastUpdated, refreshIntervalSeconds, secondsSinceUpdate]);
+
+  const refreshProgress = useMemo(() => {
+    if (!lastUpdated || !refreshIntervalSeconds || timeToNextRefresh === null) return 0;
+    return ((refreshIntervalSeconds - timeToNextRefresh) / refreshIntervalSeconds) * 100;
+  }, [lastUpdated, refreshIntervalSeconds, timeToNextRefresh]);
+
+  const nextRefreshLabel = useMemo(() => {
+    if (!lastUpdated || timeToNextRefresh === null) return 'Sin datos';
+    return formatNextRefreshLabel(timeToNextRefresh);
+  }, [lastUpdated, timeToNextRefresh]);
+
+  const refreshIntervalLabel = useMemo(
+    () => formatIntervalLabel(refreshIntervalSeconds),
+    [refreshIntervalSeconds]
+  );
+
+  return (
+    <section className="dashboard__refresh" aria-label="Próxima actualización automática">
+      <div className="dashboard__refresh-header">
+        <h3>Sincronización automática</h3>
+        <span className="dashboard__refresh-time">{nextRefreshLabel}</span>
+      </div>
+      <div
+        className="dashboard__refresh-bar"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(refreshProgress)}
+      >
+        <span style={{ width: `${refreshProgress}%` }} />
+      </div>
+      <p className="help">
+        Este panel se actualiza cada {refreshIntervalLabel}. Usa el botón de refresco del encabezado
+        para forzar una nueva lectura.
+      </p>
+    </section>
+  );
+});
+
+AutoRefreshStatus.displayName = 'AutoRefreshStatus';
+
 export function Dashboard({
   username = 'Guest',
   avatarUrl = 'https://i.pravatar.cc/100',
@@ -131,7 +367,6 @@ export function Dashboard({
 
   const formattedVariation = `${variation >= 0 ? '+' : ''}${numberFormatter.format(variation)}%`;
   const recentHistory = hasHistory ? [...safeRawHistory].slice(-4).reverse() : [];
-  const [secondsSinceUpdate, setSecondsSinceUpdate] = useState(0);
   const refreshIntervalSeconds = useMemo(
     () => (autoRefreshMs > 0 ? Math.round(autoRefreshMs / 1000) : 0),
     [autoRefreshMs]
@@ -145,6 +380,8 @@ export function Dashboard({
   const [targetType, setTargetType] = useState('above');
   const [targetError, setTargetError] = useState('');
   const [marketPulse, setMarketPulse] = useState({ loading: true, error: null, data: null });
+  const [planStorage, setPlanStorage] = useState(() => readPlanFromStorage());
+  const [activePanel, setActivePanel] = useState('overview');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -152,20 +389,22 @@ export function Dashboard({
   }, [targets]);
 
   useEffect(() => {
-    if (!lastUpdated) {
-      setSecondsSinceUpdate(0);
-      return undefined;
-    }
+    if (typeof window === 'undefined') return undefined;
 
-    const updateCounter = () => {
-      const diff = Math.max(0, Math.floor((Date.now() - new Date(lastUpdated).getTime()) / 1000));
-      setSecondsSinceUpdate(diff);
+    const handlePlanUpdate = () => {
+      setPlanStorage(readPlanFromStorage());
     };
 
-    updateCounter();
-    const interval = window.setInterval(updateCounter, 1000);
-    return () => window.clearInterval(interval);
-  }, [lastUpdated]);
+    window.addEventListener(PLAN_UPDATE_EVENT, handlePlanUpdate);
+    window.addEventListener('storage', handlePlanUpdate);
+
+    handlePlanUpdate();
+
+    return () => {
+      window.removeEventListener(PLAN_UPDATE_EVENT, handlePlanUpdate);
+      window.removeEventListener('storage', handlePlanUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,32 +450,6 @@ export function Dashboard({
     };
   }, []);
 
-  const timeToNextRefresh = useMemo(() => {
-    if (!lastUpdated || !refreshIntervalSeconds) return null;
-    const modulo = secondsSinceUpdate % refreshIntervalSeconds;
-    return modulo === 0 ? refreshIntervalSeconds : refreshIntervalSeconds - modulo;
-  }, [secondsSinceUpdate, lastUpdated, refreshIntervalSeconds]);
-
-  const refreshProgress = useMemo(() => {
-    if (!lastUpdated || !refreshIntervalSeconds || timeToNextRefresh === null) return 0;
-    return ((refreshIntervalSeconds - timeToNextRefresh) / refreshIntervalSeconds) * 100;
-  }, [lastUpdated, timeToNextRefresh, refreshIntervalSeconds]);
-
-  const elapsedLabel = useMemo(() => {
-    if (!lastUpdated) return 'Sin datos';
-    return formatElapsedLabel(secondsSinceUpdate);
-  }, [lastUpdated, secondsSinceUpdate]);
-
-  const nextRefreshLabel = useMemo(() => {
-    if (!lastUpdated || timeToNextRefresh === null) return 'Sin datos';
-    return formatNextRefreshLabel(timeToNextRefresh);
-  }, [lastUpdated, timeToNextRefresh]);
-
-  const refreshIntervalLabel = useMemo(
-    () => formatIntervalLabel(refreshIntervalSeconds),
-    [refreshIntervalSeconds]
-  );
-
   const highestPrice = useMemo(() => {
     if (!hasHistory) return null;
     return safeRawHistory.reduce((max, entry) => (entry.price > max ? entry.price : max), 0);
@@ -269,6 +482,8 @@ export function Dashboard({
       percent: (stdDev / mean) * 100,
     };
   }, [hasHistory, safeRawHistory]);
+
+  const planSummary = useMemo(() => computePlanSummary(planStorage, price), [planStorage, price]);
 
   const insights = useMemo(
     () => [
@@ -369,6 +584,81 @@ export function Dashboard({
       minute: '2-digit',
     });
   }, [marketPulse]);
+
+  const priceForecast = useMemo(() => {
+    if (!price || price <= 0) return null;
+    const drift = volatility?.percent ? clamp(volatility.percent / 100, 0.03, 0.28) : 0.12;
+    const conservative = price * (1 - drift * 0.9);
+    const baseline = price * (1 + drift * 0.15);
+    const optimistic = price * (1 + drift * 1.2);
+    return {
+      conservative,
+      baseline,
+      optimistic,
+      driftPercent: drift * 100,
+    };
+  }, [price, volatility]);
+
+  const marketNews = useMemo(() => {
+    const items = [];
+
+    if (priceForecast) {
+      items.push({
+        title: 'Precio objetivo asequible',
+        description: `Si BTC corrige hacia ${currencyFormatter.format(
+          priceForecast.conservative
+        )}, prepara compras escalonadas para promediar a la baja.`,
+      });
+      items.push({
+        title: 'Escenario base a 30 días',
+        description: `Siguiendo la deriva actual, BTC podría rondar ${currencyFormatter.format(
+          priceForecast.baseline
+        )} en un mes. Ajusta tus retiros si dependes de ingresos en euros.`,
+      });
+      items.push({
+        title: 'Potencial alcista',
+        description: `Un impulso equivalente a la volatilidad reciente situaría el precio cerca de ${currencyFormatter.format(
+          priceForecast.optimistic
+        )}. Define alertas de venta para aprovecharlo.`,
+      });
+    }
+
+    if (planSummary.hasPlan && planSummary.projectedMonthlyEur !== null) {
+      items.push({
+        title: 'Renta bajo escenario proyectado',
+        description:
+          planSummary.variation && planSummary.variation !== 0
+            ? `Con una variación del ${numberFormatter.format(
+                planSummary.variation
+              )}% obtendrías ${currencyFormatter.format(
+                planSummary.projectedMonthlyEur
+              )} al mes.`
+            : `Tus retiros generarían ${currencyFormatter.format(
+                planSummary.projectedMonthlyEur
+              )} al mes en el escenario guardado.`,
+      });
+    }
+
+    return items;
+  }, [planSummary, priceForecast]);
+
+  const planSteps = useMemo(
+    () => [
+      {
+        label: 'Define una fecha de finalización',
+        done: Boolean(planStorage.selectedDate && planSummary.periodCount > 0),
+      },
+      {
+        label: 'Reserva BTC intocables',
+        done: planSummary.withdrawable > 0,
+      },
+      {
+        label: 'Fija tu renta mensual objetivo',
+        done: planSummary.monthlyTarget > 0,
+      },
+    ],
+    [planStorage.selectedDate, planSummary.monthlyTarget, planSummary.periodCount, planSummary.withdrawable]
+  );
 
   const enhancedTargets = useMemo(() => {
     if (!Array.isArray(targets)) return [];
@@ -472,24 +762,8 @@ export function Dashboard({
     URL.revokeObjectURL(url);
   }, [hasHistory, safeRawHistory]);
 
-  return (
-    <section className="dashboard card" aria-labelledby="dashboard-heading">
-      <header className="dashboard__header">
-        <img
-          src={avatarUrl}
-          alt={`${username} avatar`}
-          width="56"
-          height="56"
-          className="dashboard__avatar"
-        />
-        <div>
-          <h2 id="dashboard-heading">Hola, {username}</h2>
-          <p className="dashboard__subtitle">
-            Sigue la evolución del precio y tus escenarios guardados.
-          </p>
-        </div>
-      </header>
-
+  const overviewMetrics = (
+    <>
       <dl className="dashboard__metrics">
         <div>
           <dt>Precio actual</dt>
@@ -512,7 +786,9 @@ export function Dashboard({
         </div>
         <div>
           <dt>Tiempo transcurrido</dt>
-          <dd>{elapsedLabel}</dd>
+          <dd>
+            <ElapsedTimeTicker lastUpdated={lastUpdated} />
+          </dd>
         </div>
         <div>
           <dt>Tendencia</dt>
@@ -529,6 +805,76 @@ export function Dashboard({
           </dd>
         </div>
       </dl>
+
+      <section className="dashboard__plan" aria-label="Seguimiento de renta mensual">
+        <header className="dashboard__plan-header">
+          <div>
+            <h3>Renta mensual objetivo</h3>
+            <p className="help">
+              Revisa si tu planificación actual cubre el ingreso mensual que necesitas.
+            </p>
+          </div>
+          <div className="dashboard__plan-target">
+            <span>Objetivo</span>
+            <strong>
+              {planSummary.monthlyTarget
+                ? currencyFormatter.format(planSummary.monthlyTarget)
+                : 'Sin objetivo'}
+            </strong>
+          </div>
+        </header>
+        <div
+          className={`dashboard__plan-status dashboard__plan-status--${planSummary.status.tone}`}
+          role="status"
+        >
+          <h4>{planSummary.status.title}</h4>
+          <p>{planSummary.status.description}</p>
+        </div>
+        <div className="dashboard__plan-cards">
+          <article>
+            <h4>Ingresos estimados</h4>
+            <p>
+              {planSummary.monthlyEur !== null
+                ? currencyFormatter.format(planSummary.monthlyEur)
+                : 'Completa el plan'}
+            </p>
+            <span className="help">
+              {planSummary.monthlyBtc ? `${numberFormatter.format(planSummary.monthlyBtc)} BTC / mes` : '—'}
+            </span>
+          </article>
+          <article>
+            <h4>Escenario proyectado</h4>
+            <p>
+              {planSummary.projectedMonthlyEur !== null
+                ? currencyFormatter.format(planSummary.projectedMonthlyEur)
+                : 'Ajusta el escenario'}
+            </p>
+            <span className="help">
+              {planSummary.selectedDateLabel
+                ? `Plan hasta ${planSummary.selectedDateLabel}`
+                : 'Define una fecha final'}
+            </span>
+          </article>
+        </div>
+        <div
+          className="dashboard__plan-progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={200}
+          aria-valuenow={Math.round(planSummary.coveragePercent)}
+          aria-valuetext={`Cobertura del ${Math.round(planSummary.coveragePercent)}% del objetivo mensual.`}
+        >
+          <span style={{ width: `${Math.min(planSummary.coveragePercent, 100)}%` }} />
+        </div>
+        <ul className="dashboard__plan-steps">
+          {planSteps.map(step => (
+            <li key={step.label} className={step.done ? 'dashboard__plan-step--done' : undefined}>
+              <span aria-hidden="true">{step.done ? '✔︎' : '•'}</span>
+              {step.label}
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <div className="dashboard__chart" role="img" aria-label="Histórico del precio en euros">
         {hasHistory ? (
@@ -569,25 +915,10 @@ export function Dashboard({
         )}
       </div>
 
-      <section className="dashboard__refresh" aria-label="Próxima actualización automática">
-        <div className="dashboard__refresh-header">
-          <h3>Sincronización automática</h3>
-          <span className="dashboard__refresh-time">{nextRefreshLabel}</span>
-        </div>
-        <div
-          className="dashboard__refresh-bar"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(refreshProgress)}
-        >
-          <span style={{ width: `${refreshProgress}%` }} />
-        </div>
-        <p className="help">
-          Este panel se actualiza cada {refreshIntervalLabel}. Usa el botón de refresco del encabezado
-          para forzar una nueva lectura.
-        </p>
-      </section>
+      <AutoRefreshStatus
+        lastUpdated={lastUpdated}
+        refreshIntervalSeconds={refreshIntervalSeconds}
+      />
 
       <section className="dashboard__insights" aria-label="Resumen del historial">
         {insights.map(item => (
@@ -597,35 +928,11 @@ export function Dashboard({
           </article>
         ))}
       </section>
+    </>
+  );
 
-      <section className="dashboard__pulse" aria-label="Pulso global del mercado">
-        <div className="dashboard__pulse-header">
-          <h3>Radar de mercado</h3>
-          <p className="help">Contexto externo cortesía de CoinGecko para tus decisiones.</p>
-        </div>
-        {marketPulse.loading ? (
-          <p className="dashboard__pulse-status">Cargando mercado…</p>
-        ) : marketPulse.error ? (
-          <p className="dashboard__pulse-status dashboard__pulse-status--error">
-            {marketPulse.error}
-          </p>
-        ) : (
-          <>
-            <ul className="dashboard__pulse-grid">
-              {marketPulseItems.map(item => (
-                <li key={item.label}>
-                  <span>{item.label}</span>
-                  <strong className={item.intent}>{item.value}</strong>
-                </li>
-              ))}
-            </ul>
-            {marketPulseUpdatedLabel ? (
-              <p className="dashboard__pulse-updated">Actualizado a las {marketPulseUpdatedLabel}</p>
-            ) : null}
-          </>
-        )}
-      </section>
-
+  const activityPanel = (
+    <>
       {recentHistory.length > 0 ? (
         <section className="dashboard__recent" aria-label="Últimas capturas del precio">
           <h3>Últimos movimientos</h3>
@@ -657,7 +964,9 @@ export function Dashboard({
             })}
           </ul>
         </section>
-      ) : null}
+      ) : (
+        <p className="help">Aún no hay movimientos recientes. Vuelve cuando tengas historial.</p>
+      )}
 
       <section className="dashboard__targets" aria-label="Alertas personales de precio">
         <div className="dashboard__targets-header">
@@ -774,6 +1083,80 @@ export function Dashboard({
           Limpiar historial
         </button>
       </footer>
+    </>
+  );
+
+  const marketPanel = (
+    <>
+      <section className="dashboard__pulse" aria-label="Pulso global del mercado">
+        <div className="dashboard__pulse-header">
+          <div>
+            <h3>Radar de mercado</h3>
+            <p className="help">Contexto externo cortesía de CoinGecko para tus decisiones.</p>
+          </div>
+          {priceForecast ? (
+            <span className="dashboard__pulse-drift">
+              Volatilidad reciente: {percentageFormatter.format(priceForecast.driftPercent)}%
+            </span>
+          ) : null}
+        </div>
+        {marketPulse.loading ? (
+          <p className="dashboard__pulse-status">Cargando mercado…</p>
+        ) : marketPulse.error ? (
+          <p className="dashboard__pulse-status dashboard__pulse-status--error">{marketPulse.error}</p>
+        ) : (
+          <>
+            <ul className="dashboard__pulse-grid">
+              {marketPulseItems.map(item => (
+                <li key={item.label}>
+                  <span>{item.label}</span>
+                  <strong className={item.intent}>{item.value}</strong>
+                </li>
+              ))}
+            </ul>
+            {marketPulseUpdatedLabel ? (
+              <p className="dashboard__pulse-updated">Actualizado a las {marketPulseUpdatedLabel}</p>
+            ) : null}
+          </>
+        )}
+      </section>
+
+      {priceForecast ? (
+        <section className="dashboard__forecast" aria-label="Escenarios de precio a 30 días">
+          <h3>Escenarios a 30 días</h3>
+          <div className="dashboard__forecast-grid">
+            <article>
+              <h4>Oportunidad de compra</h4>
+              <p>{currencyFormatter.format(priceForecast.conservative)}</p>
+              <span className="help">Configura alertas de compra por debajo de este nivel.</span>
+            </article>
+            <article>
+              <h4>Escenario base</h4>
+              <p>{currencyFormatter.format(priceForecast.baseline)}</p>
+              <span className="help">Mantén tu plan si dependes de una renta estable.</span>
+            </article>
+            <article>
+              <h4>Impulso alcista</h4>
+              <p>{currencyFormatter.format(priceForecast.optimistic)}</p>
+              <span className="help">Considera ventas parciales si alcanzamos este objetivo.</span>
+            </article>
+          </div>
+        </section>
+      ) : null}
+
+      {marketNews.length > 0 ? (
+        <section className="dashboard__news" aria-label="Ideas rápidas">
+          <h3>Ideas para tu estrategia</h3>
+          <ul>
+            {marketNews.map(item => (
+              <li key={item.title}>
+                <h4>{item.title}</h4>
+                <p>{item.description}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="dashboard__resources" aria-label="Recursos recomendados">
         <h3>Inspiración para tu estrategia</h3>
@@ -788,6 +1171,66 @@ export function Dashboard({
           ))}
         </ul>
       </section>
+    </>
+  );
+
+  const panels = [
+    { id: 'overview', label: 'Resumen', content: overviewMetrics },
+    { id: 'activity', label: 'Actividad', content: activityPanel },
+    { id: 'market', label: 'Mercado', content: marketPanel },
+  ];
+
+  return (
+    <section className="dashboard card" aria-labelledby="dashboard-heading">
+      <header className="dashboard__header">
+        <img
+          src={avatarUrl}
+          alt={`${username} avatar`}
+          width="56"
+          height="56"
+          className="dashboard__avatar"
+        />
+        <div>
+          <h2 id="dashboard-heading">Hola, {username}</h2>
+          <p className="dashboard__subtitle">
+            Sigue la evolución del precio, tu plan de renta y tus alertas en secciones separadas.
+          </p>
+        </div>
+      </header>
+
+      <nav className="dashboard__nav" aria-label="Secciones del panel">
+        <div role="tablist" aria-orientation="horizontal">
+          {panels.map(panel => (
+            <button
+              key={panel.id}
+              type="button"
+              role="tab"
+              id={`dashboard-tab-${panel.id}`}
+              aria-controls={`dashboard-panel-${panel.id}`}
+              aria-selected={activePanel === panel.id}
+              className={`dashboard__nav-button${
+                activePanel === panel.id ? ' dashboard__nav-button--active' : ''
+              }`}
+              onClick={() => setActivePanel(panel.id)}
+            >
+              {panel.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {panels.map(panel => (
+        <div
+          key={panel.id}
+          id={`dashboard-panel-${panel.id}`}
+          role="tabpanel"
+          aria-labelledby={`dashboard-tab-${panel.id}`}
+          hidden={activePanel !== panel.id}
+          className="dashboard__panel"
+        >
+          {panel.content}
+        </div>
+      ))}
     </section>
   );
 }

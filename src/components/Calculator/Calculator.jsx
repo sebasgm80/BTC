@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { differenceInMonths, differenceInWeeks } from "date-fns";
 import "./Calculator.css";
 
@@ -20,10 +20,14 @@ const eurFormatter = new Intl.NumberFormat("es-ES", {
 });
 
 const PROFILE_STORAGE_KEY = "btc-profiles";
+const PLAN_UPDATE_EVENT = "btc-plan-updated";
 const VARIATION_STORAGE_KEY = "btc-price-variation";
 const VARIATION_MIN = -50;
 const VARIATION_MAX = 60;
 const SCHEDULE_PREVIEW_LIMIT = 12;
+const MONTHLY_TARGET_STORAGE_KEY = "btc-monthly-target";
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const createProfileId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -78,6 +82,9 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
   });
   const [profiles, setProfiles] = useState(() => readProfiles());
   const [profileName, setProfileName] = useState("");
+  const [monthlyTarget, setMonthlyTarget] = useState(() =>
+    readNumberFromStorage(MONTHLY_TARGET_STORAGE_KEY)
+  );
   const [priceVariation, setPriceVariation] = useState(() => {
     if (typeof window === "undefined") return 0;
     const stored = window.localStorage.getItem(VARIATION_STORAGE_KEY);
@@ -86,35 +93,52 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     return Math.min(Math.max(parsed, VARIATION_MIN), VARIATION_MAX);
   });
 
+  const notifyPlanUpdate = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new Event(PLAN_UPDATE_EVENT));
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("walletValue", String(walletValue));
-  }, [walletValue]);
+    notifyPlanUpdate();
+  }, [walletValue, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("btcIntocableValue", String(btcIntocableValue));
-  }, [btcIntocableValue]);
+    notifyPlanUpdate();
+  }, [btcIntocableValue, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("selectedDate", selectedDate);
-  }, [selectedDate]);
+    notifyPlanUpdate();
+  }, [selectedDate, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("frequency", frequency);
-  }, [frequency]);
+    notifyPlanUpdate();
+  }, [frequency, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
-  }, [profiles]);
+    notifyPlanUpdate();
+  }, [profiles, notifyPlanUpdate]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(VARIATION_STORAGE_KEY, String(priceVariation));
-  }, [priceVariation]);
+    notifyPlanUpdate();
+  }, [priceVariation, notifyPlanUpdate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MONTHLY_TARGET_STORAGE_KEY, String(monthlyTarget));
+    notifyPlanUpdate();
+  }, [monthlyTarget, notifyPlanUpdate]);
 
   const handleWalletChange = (event) => {
     const value = Number(event.target.value);
@@ -199,6 +223,79 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       : priceVariation > 0
       ? "Escenario optimista"
       : "Escenario conservador";
+
+  const monthlyFactor = frequency === "weekly" ? 4.345 : 1;
+  const monthlyPayoutBTC = validDate && totalBTCValue > 0 ? totalBTCValue * monthlyFactor : 0;
+  const monthlyPayoutEUR = price ? monthlyPayoutBTC * price : null;
+  const projectedMonthlyPayoutEUR = projectedPrice ? monthlyPayoutBTC * projectedPrice : null;
+  const safeMonthlyTarget = Math.max(monthlyTarget, 0);
+  const targetCoveragePercent =
+    safeMonthlyTarget > 0 && monthlyPayoutEUR !== null
+      ? clamp((monthlyPayoutEUR / safeMonthlyTarget) * 100, 0, 200)
+      : monthlyPayoutEUR && monthlyPayoutEUR > 0
+      ? 100
+      : 0;
+  const targetCoverageLabel = Math.round(targetCoveragePercent);
+  const targetGap =
+    safeMonthlyTarget > 0 && monthlyPayoutEUR !== null ? monthlyPayoutEUR - safeMonthlyTarget : null;
+
+  const targetStatus = useMemo(() => {
+    if (!validDate || withdrawable <= 0) {
+      return {
+        tone: "info",
+        title: "Activa tu plan",
+        description:
+          "Selecciona una fecha futura y libera BTC retirables para estimar tu renta mensual objetivo.",
+      };
+    }
+
+    if (!safeMonthlyTarget) {
+      return {
+        tone: "balanced",
+        title: "Añade tu objetivo",
+        description:
+          "Define la renta mensual que necesitas para medir la cobertura de tu estrategia de retiros.",
+      };
+    }
+
+    if (targetGap !== null && targetGap >= 0) {
+      return {
+        tone: targetGap > 0 ? "positive" : "balanced",
+        title: targetGap > 0 ? "Objetivo cubierto" : "Objetivo alcanzado",
+        description:
+          targetGap > 0
+            ? `Tu plan genera ${eurFormatter.format(targetGap)} adicionales al mes sobre la meta.`
+            : "Tu renta mensual coincide con el objetivo fijado.",
+      };
+    }
+
+    return {
+      tone: "warning",
+      title: "Ritmo insuficiente",
+      description:
+        targetGap !== null
+          ? `Faltan ${eurFormatter.format(Math.abs(targetGap))} al mes. Ajusta la fecha o reduce los BTC protegidos.`
+          : "Aumenta la cantidad disponible para retiro o extiende el plazo para acercarte a tu meta.",
+    };
+  }, [safeMonthlyTarget, targetGap, validDate, withdrawable]);
+
+  const planSteps = useMemo(
+    () => [
+      { label: "1. Selecciona la fecha final", done: validDate },
+      { label: "2. Reserva BTC intocable", done: withdrawable > 0 },
+      { label: "3. Ajusta el objetivo mensual", done: safeMonthlyTarget > 0 },
+    ],
+    [safeMonthlyTarget, validDate, withdrawable]
+  );
+
+  const targetSliderMax = useMemo(() => {
+    const base = monthlyPayoutEUR && monthlyPayoutEUR > 0 ? monthlyPayoutEUR * 2.5 : 3000;
+    const withTarget = safeMonthlyTarget > 0 ? safeMonthlyTarget * 1.5 : 0;
+    const candidate = Math.max(base ?? 0, withTarget ?? 0);
+    return Math.max(600, Math.ceil(candidate / 100) * 100);
+  }, [monthlyPayoutEUR, safeMonthlyTarget]);
+
+  const goalStatusClass = `calculator__goal-status calculator__goal-status--${targetStatus.tone}`;
 
   const aggregateErrors = useMemo(() => {
     const unique = new Set(
@@ -355,6 +452,20 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     setProfiles((prev) => prev.filter((profile) => profile.id !== id));
   };
 
+  const handleTargetSliderChange = (event) => {
+    const value = Number(event.target.value);
+    setMonthlyTarget(Number.isNaN(value) ? 0 : value);
+  };
+
+  const handleTargetInputChange = (event) => {
+    const value = Number(event.target.value);
+    if (Number.isNaN(value) || value < 0) {
+      setMonthlyTarget(0);
+      return;
+    }
+    setMonthlyTarget(value);
+  };
+
   return (
     <section className="calculator card" aria-labelledby="calculator-heading">
       <header className="calculator__header">
@@ -393,6 +504,99 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
           </>
         )}
       </div>
+
+      <section className="calculator__goal" aria-label="Objetivo de renta mensual">
+        <div className="calculator__goal-top">
+          <div>
+            <h3>Renta mensual deseada</h3>
+            <p className="help">Define tu meta y verifica si el plan de retiros la cubre.</p>
+          </div>
+          <div className="calculator__goal-stats">
+            <article>
+              <span>Ingreso actual estimado</span>
+              <strong>
+                {monthlyPayoutEUR !== null && monthlyPayoutEUR > 0
+                  ? eurFormatter.format(monthlyPayoutEUR)
+                  : "—"}
+              </strong>
+              <small>
+                {monthlyPayoutBTC > 0
+                  ? `${btcFormatter.format(monthlyPayoutBTC)} BTC/mes`
+                  : "Configura tu plan"}
+              </small>
+            </article>
+            <article>
+              <span>{scenarioLabel}</span>
+              <strong>
+                {projectedMonthlyPayoutEUR !== null && projectedMonthlyPayoutEUR > 0
+                  ? eurFormatter.format(projectedMonthlyPayoutEUR)
+                  : "—"}
+              </strong>
+              <small>
+                {priceVariation === 0
+                  ? "Sin variación prevista"
+                  : `Ajuste ${priceVariation > 0 ? "+" : ""}${priceVariation}%`}
+              </small>
+            </article>
+          </div>
+        </div>
+        <div className={goalStatusClass} role="status">
+          <h4>{targetStatus.title}</h4>
+          <p>{targetStatus.description}</p>
+        </div>
+        <div className="calculator__goal-controls">
+          <label htmlFor="monthly-target">Objetivo mensual (EUR)</label>
+          <div className="calculator__goal-inputs">
+            <input
+              id="monthly-target"
+              type="range"
+              min="0"
+              max={targetSliderMax}
+              step="50"
+              value={safeMonthlyTarget}
+              onChange={handleTargetSliderChange}
+            />
+            <input
+              type="number"
+              min="0"
+              step="10"
+              value={safeMonthlyTarget}
+              onChange={handleTargetInputChange}
+            />
+          </div>
+        </div>
+        <div
+          className="calculator__goal-progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={200}
+          aria-valuenow={targetCoverageLabel}
+          aria-valuetext={`Cobertura del ${targetCoverageLabel}% del objetivo mensual.`}
+        >
+          <span style={{ width: `${Math.min(targetCoveragePercent, 100)}%` }} />
+        </div>
+        <div className="calculator__goal-legend">
+          <span>
+            Objetivo: {safeMonthlyTarget ? eurFormatter.format(safeMonthlyTarget) : "Sin definir"}
+          </span>
+          <span>
+            {monthlyPayoutEUR !== null && monthlyPayoutEUR > 0
+              ? `Cobertura ${targetCoverageLabel}%`
+              : "Pendiente de cálculo"}
+          </span>
+        </div>
+        <ul className="calculator__steps">
+          {planSteps.map((step) => (
+            <li
+              key={step.label}
+              className={step.done ? "calculator__steps-item--done" : undefined}
+            >
+              <span aria-hidden="true">{step.done ? "✔" : "•"}</span>
+              {step.label}
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {aggregateErrors.length > 0 && (
         <div className="calculator__errors" role="alert">
