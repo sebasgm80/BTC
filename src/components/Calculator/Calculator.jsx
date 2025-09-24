@@ -17,16 +17,15 @@ import {
   VARIATION_MAX,
 
 
+
   createProfileId,
+
 
   readProfiles,
   writeProfiles,
   dispatchPlanUpdate,
 } from "../../lib/calculatorStorage";
-
- codex/define-alternative-withdrawal-systems-5elrq4
 import { createProfileId } from "../../lib/id";
-
 
 const sourceLabels = {
   coindesk: "CoinDesk",
@@ -56,7 +55,13 @@ const {
   priceVariation: VARIATION_STORAGE_KEY,
   monthlyTarget: MONTHLY_TARGET_STORAGE_KEY,
 } = STORAGE_KEYS;
- codex/define-alternative-withdrawal-systems-4eld9k
+
+
+const SCHEDULE_PREVIEW_LIMIT = 12;
+
+const positiveOrNull = (value) =>
+  Number.isFinite(value) && value > 0 ? value : null;
+
 
 const SCHEDULE_PREVIEW_LIMIT = 12;
 
@@ -72,9 +77,6 @@ const SCHEDULE_PREVIEW_LIMIT = 12;
 
 const positiveOrNull = (value) =>
   Number.isFinite(value) && value > 0 ? value : null;
-
-
-
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 export function Calculator({ price, source, loading, error, lastUpdated, onRefresh }) {
