@@ -502,6 +502,14 @@
   .dashboard__target-progress-label {
     margin-left: 0;
   }
+
+  .dashboard__insights {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard__metrics {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -521,5 +529,55 @@
 
   .dashboard__footer {
     justify-content: center;
+  }
+
+  .dashboard__chart {
+    height: 240px;
+    padding: 1rem;
+  }
+
+  .dashboard__refresh,
+  .dashboard__pulse,
+  .dashboard__targets,
+  .dashboard__resources {
+    padding: 0.95rem;
+  }
+
+  .dashboard__target-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dashboard__target-remove {
+    width: 100%;
+  }
+
+  .dashboard__target-meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard__metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard__recent-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+
+  .dashboard__chip {
+    justify-self: stretch;
+    text-align: center;
+  }
+
+  .dashboard__refresh-header {
+    align-items: stretch;
+  }
+
+  .dashboard__refresh-time {
+    align-self: flex-start;
   }
 }

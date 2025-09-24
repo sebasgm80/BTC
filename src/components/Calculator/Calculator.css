@@ -350,6 +350,26 @@
   font-size: 0.9rem;
 }
 
+.calculator__schedule-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -0.2rem;
+  padding-bottom: 0.35rem;
+}
+
+.calculator__schedule-table table {
+  min-width: 560px;
+}
+
+.calculator__schedule-table::-webkit-scrollbar {
+  height: 6px;
+}
+
+.calculator__schedule-table::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
 .calculator__schedule th,
 .calculator__schedule td {
   padding: 0.6rem 0.75rem;
@@ -482,6 +502,19 @@
     flex-direction: column;
     align-items: stretch;
   }
+
+  .calculator__scenario-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .calculator__scenario-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .calculator__schedule-table {
+    margin: 0 -0.35rem;
+  }
 }
 
 @media (max-width: 600px) {
@@ -505,11 +538,19 @@
   .calculator__result-value {
     font-size: 1.9rem;
   }
+
+  .calculator__schedule-table table {
+    min-width: 520px;
+  }
 }
 
 @media (max-width: 480px) {
   .calculator__profile-form {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .calculator__schedule-table {
+    margin: 0 -0.5rem;
   }
 }

@@ -593,28 +593,30 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
             </button>
           </div>
           {scheduleAvailable ? (
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Fecha</th>
-                  <th scope="col">BTC</th>
-                  <th scope="col">Valor actual</th>
-                  <th scope="col">Escenario</th>
-                  <th scope="col">Saldo restante</th>
-                </tr>
-              </thead>
-              <tbody>
-                {schedule.map((item) => (
-                  <tr key={item.id}>
-                    <th scope="row">{item.label}</th>
-                    <td>{item.amountLabel}</td>
-                    <td>{item.eurLabel}</td>
-                    <td>{item.projectedLabel}</td>
-                    <td>{item.remainingLabel}</td>
+            <div className="calculator__schedule-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">BTC</th>
+                    <th scope="col">Valor actual</th>
+                    <th scope="col">Escenario</th>
+                    <th scope="col">Saldo restante</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {schedule.map((item) => (
+                    <tr key={item.id}>
+                      <th scope="row">{item.label}</th>
+                      <td>{item.amountLabel}</td>
+                      <td>{item.eurLabel}</td>
+                      <td>{item.projectedLabel}</td>
+                      <td>{item.remainingLabel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="help">
               Configura una fecha futura y libera BTC retirables para generar el calendario.
