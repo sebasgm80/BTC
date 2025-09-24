@@ -1,46 +1,85 @@
 #root {
-  max-width: 1280px;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--foreground);
+}
+
+.content-grid {
+  width: min(1200px, calc(100% - 3rem));
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+  padding: 2rem 0 4rem;
+  display: grid;
+  gap: 2rem;
 }
 
 .card {
-  padding: 2em;
+  border-radius: 1.5rem;
+  padding: 2rem;
+  background: rgba(10, 14, 26, 0.65);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
 }
 
-.read-the-docs {
-  color: #888;
+.primary-button,
+.secondary-button,
+.ghost-button {
+  border-radius: 999px;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.principal {
-  margin-top: 100px;
+.primary-button {
+  background: linear-gradient(135deg, #f7931a, #ffb347);
+  color: #1c1c1c;
+}
+
+.secondary-button {
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+
+.ghost-button {
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.ghost-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+}
+
+.primary-button:focus,
+.secondary-button:focus,
+.ghost-button:focus {
+  outline: 2px solid rgba(247, 147, 26, 0.6);
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .content-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 600px) {
+  .content-grid {
+    width: calc(100% - 2rem);
+  }
+
+  .card {
+    padding: 1.5rem;
+  }
 }
