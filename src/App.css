@@ -28,11 +28,11 @@
 
 .content-grid {
   position: relative;
-  width: min(1200px, calc(100% - 3rem));
+  width: min(1100px, calc(100% - 2.5rem));
   margin: 0 auto;
-  padding: 2.5rem 0 4.5rem;
+  padding: 2.25rem 0 4.25rem;
   display: grid;
-  gap: 2.5rem;
+  gap: 2.25rem;
 }
 
 .content-grid::before {
@@ -44,6 +44,11 @@
   background: linear-gradient(145deg, rgba(11, 16, 32, 0.6), rgba(8, 12, 24, 0.45));
   z-index: -1;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+
+#calculator-heading,
+#dashboard-heading {
+  scroll-margin-top: 120px;
 }
 
 .card {
@@ -129,10 +134,29 @@
   }
 }
 
+@media (max-width: 960px) {
+  .content-grid {
+    padding: 2rem 0 3.75rem;
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .content-grid {
+    width: calc(100% - 1.75rem);
+    gap: 1.85rem;
+  }
+
+  .card {
+    padding: 1.55rem;
+    border-radius: 1.4rem;
+  }
+}
+
 @media (max-width: 600px) {
   .content-grid {
-    width: calc(100% - 2rem);
-    padding: 2rem 0 3.5rem;
+    width: calc(100% - 1.5rem);
+    padding: 1.85rem 0 3.25rem;
   }
 
   .content-grid::before {
@@ -140,7 +164,13 @@
   }
 
   .card {
-    padding: 1.6rem;
+    padding: 1.45rem;
+  }
+}
+
+@media (max-width: 460px) {
+  .card {
+    padding: 1.3rem;
   }
 }
 

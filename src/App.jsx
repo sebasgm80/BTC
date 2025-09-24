@@ -7,6 +7,7 @@ import { UseBTCPrice } from './hooks/btc';
 
 const HISTORY_STORAGE_KEY = 'btc-history';
 const MAX_HISTORY_POINTS = 30;
+const AUTO_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 const safeParseHistory = value => {
   if (!value) return [];
@@ -25,7 +26,9 @@ const safeParseHistory = value => {
 };
 
 function App() {
-  const { price, source, loading, error, lastUpdated, refresh } = UseBTCPrice();
+  const { price, source, loading, error, lastUpdated, refresh } = UseBTCPrice(
+    AUTO_REFRESH_INTERVAL_MS
+  );
   const [history, setHistory] = useState(() => {
     if (typeof window === 'undefined') return [];
     return safeParseHistory(window.localStorage.getItem(HISTORY_STORAGE_KEY));
@@ -96,6 +99,7 @@ function App() {
           source={source}
           lastUpdated={lastUpdated}
           onClearHistory={clearHistory}
+          autoRefreshMs={AUTO_REFRESH_INTERVAL_MS}
         />
       </main>
     </div>
