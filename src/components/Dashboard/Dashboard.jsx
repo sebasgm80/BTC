@@ -389,6 +389,7 @@ export function Dashboard({
   }, [targets]);
 
   useEffect(() => {
+
     if (typeof window === 'undefined') return undefined;
 
     const handlePlanUpdate = () => {
