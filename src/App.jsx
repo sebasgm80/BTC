@@ -70,7 +70,14 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Header />
+      <Header
+        price={price}
+        source={source}
+        loading={loading}
+        error={error}
+        lastUpdated={lastUpdated}
+        onRefresh={refresh}
+      />
       <main className="content-grid">
         <Calculator
           price={price}

@@ -5,42 +5,87 @@
 }
 
 .app-shell {
+  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   color: var(--foreground);
+  isolation: isolate;
+}
+
+.app-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(247, 147, 26, 0.18), transparent 55%),
+    radial-gradient(circle at 80% 10%, rgba(87, 124, 255, 0.16), transparent 55%),
+    radial-gradient(circle at 50% 80%, rgba(16, 227, 178, 0.12), transparent 60%);
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .content-grid {
+  position: relative;
   width: min(1200px, calc(100% - 3rem));
   margin: 0 auto;
-  padding: 2rem 0 4rem;
+  padding: 2.5rem 0 4.5rem;
   display: grid;
-  gap: 2rem;
+  gap: 2.5rem;
+}
+
+.content-grid::before {
+  content: '';
+  position: absolute;
+  inset: 1rem;
+  border-radius: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(145deg, rgba(11, 16, 32, 0.6), rgba(8, 12, 24, 0.45));
+  z-index: -1;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
 
 .card {
-  border-radius: 1.5rem;
-  padding: 2rem;
+  position: relative;
+  border-radius: 1.6rem;
+  padding: 2.2rem;
   background: rgba(10, 14, 26, 0.65);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .primary-button,
 .secondary-button,
 .ghost-button {
   border-radius: 999px;
-  padding: 0.5rem 1.25rem;
+  padding: 0.55rem 1.35rem;
   border: none;
   cursor: pointer;
   font-weight: 600;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
 }
 
 .primary-button {
   background: linear-gradient(135deg, #f7931a, #ffb347);
   color: #1c1c1c;
+  box-shadow: 0 12px 25px rgba(247, 147, 26, 0.3);
 }
 
 .secondary-button {
@@ -57,7 +102,8 @@
 .secondary-button:hover,
 .ghost-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  filter: brightness(1.05);
 }
 
 .primary-button:focus,
@@ -65,6 +111,15 @@
 .ghost-button:focus {
   outline: 2px solid rgba(247, 147, 26, 0.6);
   outline-offset: 2px;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.ghost-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
 @media (min-width: 1024px) {
@@ -77,9 +132,22 @@
 @media (max-width: 600px) {
   .content-grid {
     width: calc(100% - 2rem);
+    padding: 2rem 0 3.5rem;
+  }
+
+  .content-grid::before {
+    inset: 0.5rem;
   }
 
   .card {
-    padding: 1.5rem;
+    padding: 1.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary-button,
+  .secondary-button,
+  .ghost-button {
+    transition: none;
   }
 }
