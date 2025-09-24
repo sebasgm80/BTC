@@ -11,6 +11,9 @@ import {
   sanitizeStrategyConfig,
   clamp,
 } from './strategyCatalog';
+
+
+
 import { createProfileId } from './id';
 
 export { createProfileId } from './id';
@@ -48,6 +51,17 @@ export const PLAN_UPDATE_EVENT = 'btc-plan-updated';
 export const VARIATION_MIN = -50;
 export const VARIATION_MAX = 60;
 export const MAX_PROFILES = 5;
+
+const canUseCrypto =
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function';
+
+export const createProfileId = () => {
+  if (canUseCrypto) {
+    return crypto.randomUUID();
+  }
+  return `profile-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
 
 const sanitizeNumber = (value: unknown) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 
