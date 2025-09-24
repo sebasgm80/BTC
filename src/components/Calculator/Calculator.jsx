@@ -20,6 +20,10 @@ const eurFormatter = new Intl.NumberFormat("es-ES", {
 });
 
 const PROFILE_STORAGE_KEY = "btc-profiles";
+const VARIATION_STORAGE_KEY = "btc-price-variation";
+const VARIATION_MIN = -50;
+const VARIATION_MAX = 60;
+const SCHEDULE_PREVIEW_LIMIT = 12;
 
 const createProfileId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -74,6 +78,13 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
   });
   const [profiles, setProfiles] = useState(() => readProfiles());
   const [profileName, setProfileName] = useState("");
+  const [priceVariation, setPriceVariation] = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const stored = window.localStorage.getItem(VARIATION_STORAGE_KEY);
+    const parsed = Number(stored);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.min(Math.max(parsed, VARIATION_MIN), VARIATION_MAX);
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -99,6 +110,11 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     if (typeof window === "undefined") return;
     window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profiles));
   }, [profiles]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(VARIATION_STORAGE_KEY, String(priceVariation));
+  }, [priceVariation]);
 
   const handleWalletChange = (event) => {
     const value = Number(event.target.value);
@@ -170,12 +186,148 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
   const withdrawablePercentLabel = Math.round(withdrawablePercent);
   const preservedPercentLabel = Math.round(preservedPercent);
 
+  const projectedPrice = price ? price * (1 + priceVariation / 100) : null;
+  const projectedEURValue = projectedPrice ? totalBTCValue * projectedPrice : 0;
+  const eurDifference = projectedEURValue - totalEURValue;
+  const eurDifferenceLabel =
+    eurDifference === 0
+      ? "Sin variación"
+      : `${eurDifference > 0 ? "+" : "-"}${eurFormatter.format(Math.abs(eurDifference))}`;
+  const scenarioLabel =
+    priceVariation === 0
+      ? "Escenario neutro"
+      : priceVariation > 0
+      ? "Escenario optimista"
+      : "Escenario conservador";
+
   const aggregateErrors = useMemo(() => {
     const unique = new Set(
       [walletError, btcError, dateError, frequencyError].filter((message) => Boolean(message))
     );
     return Array.from(unique);
   }, [walletError, btcError, dateError, frequencyError]);
+
+  const schedule = useMemo(() => {
+    if (!validDate || totalBTCValue <= 0 || periodsDifference <= 0 || withdrawable <= 0) {
+      return [];
+    }
+
+    const items = [];
+    const currentDate = new Date();
+    const limitDate = new Date(selectedDate);
+    const amountPerPeriod = withdrawable / periodsDifference;
+
+    for (let index = 0; index < Math.min(periodsDifference, SCHEDULE_PREVIEW_LIMIT); index += 1) {
+      const payoutDate = new Date(currentDate);
+      if (frequency === "weekly") {
+        payoutDate.setDate(payoutDate.getDate() + 7 * (index + 1));
+      } else {
+        payoutDate.setMonth(payoutDate.getMonth() + (index + 1));
+      }
+
+      if (payoutDate > limitDate) break;
+
+      const remaining = Math.max(withdrawable - amountPerPeriod * (index + 1), 0);
+      const formattedDate = payoutDate.toLocaleDateString("es-ES", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+
+      items.push({
+        id: `${payoutDate.toISOString()}-${index}`,
+        label: formattedDate,
+        amount: amountPerPeriod,
+        amountLabel: btcFormatter.format(amountPerPeriod),
+        eurLabel: price ? eurFormatter.format(amountPerPeriod * price) : "—",
+        projectedLabel: projectedPrice
+          ? eurFormatter.format(amountPerPeriod * projectedPrice)
+          : "—",
+        remainingLabel: btcFormatter.format(remaining),
+        raw: {
+          amount: amountPerPeriod,
+          eur: price ? amountPerPeriod * price : null,
+          projected: projectedPrice ? amountPerPeriod * projectedPrice : null,
+          label: formattedDate,
+        },
+      });
+    }
+
+    return items;
+  }, [
+    frequency,
+    periodsDifference,
+    price,
+    projectedPrice,
+    selectedDate,
+    totalBTCValue,
+    validDate,
+    withdrawable,
+  ]);
+
+  const scheduleAvailable = schedule.length > 0;
+
+  const strategyTip = useMemo(() => {
+    if (!validDate || withdrawable <= 0) {
+      return {
+        tone: "info",
+        title: "Construye tu plan",
+        description:
+          "Define una fecha futura y reserva una cantidad protegida para visualizar recomendaciones personalizadas.",
+      };
+    }
+
+    if (withdrawablePercent >= 70) {
+      return {
+        tone: "warning",
+        title: "Ritmo acelerado",
+        description:
+          "Estás destinando más del 70% de tu cartera a retiros programados. Considera ampliar el plazo o aumentar los BTC protegidos para tener mayor colchón.",
+      };
+    }
+
+    if (withdrawablePercent <= 30) {
+      return {
+        tone: "positive",
+        title: "Margen disponible",
+        description:
+          "Tu porcentaje de retiros es moderado. Podrías añadir un escenario alternativo con un ritmo más ambicioso para comparar resultados.",
+      };
+    }
+
+    return {
+      tone: "balanced",
+      title: "Estrategia equilibrada",
+      description:
+        "Tu planificación reparte los retiros de forma estable. Guarda este escenario y ajusta el slider de precio para evaluar posibles movimientos del mercado.",
+    };
+  }, [validDate, withdrawable, withdrawablePercent]);
+
+  const adviceToneClass = `calculator__advice--${strategyTip.tone}`;
+
+  const handleScheduleExport = () => {
+    if (!scheduleAvailable || typeof window === "undefined") return;
+
+    const csvHeader = "Fecha,BTC,Valor EUR actual,Valor EUR escenario\n";
+    const csvRows = schedule
+      .map(({ raw }) => {
+        const amount = raw.amount.toFixed(8);
+        const eur = raw.eur !== null ? raw.eur.toFixed(2) : "";
+        const projected = raw.projected !== null ? raw.projected.toFixed(2) : "";
+        return `${raw.label},${amount},${eur},${projected}`;
+      })
+      .join("\n");
+
+    const blob = new Blob([csvHeader + csvRows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "plan-retiro-btc.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const handleProfileSave = (event) => {
     event.preventDefault();
@@ -378,6 +530,97 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
               : 'Ajusta los valores para liberar BTC retirables y visualizar un plan de retiros.'}
           </p>
         </div>
+
+        <section className="calculator__scenario" aria-label="Simulador de precio futuro">
+          <header className="calculator__scenario-header">
+            <div>
+              <h3>{scenarioLabel}</h3>
+              <p>
+                Ajusta el comportamiento del mercado para estimar el valor de tus retiros.
+              </p>
+            </div>
+            <span className="calculator__scenario-badge">{priceVariation}%</span>
+          </header>
+          <label htmlFor="price-variation" className="visualmente-oculto">
+            Variación hipotética del precio
+          </label>
+          <input
+            id="price-variation"
+            type="range"
+            min={VARIATION_MIN}
+            max={VARIATION_MAX}
+            value={priceVariation}
+            onChange={(event) => setPriceVariation(Number(event.target.value))}
+          />
+          <dl className="calculator__scenario-stats">
+            <div>
+              <dt>Proyección del precio</dt>
+              <dd>{projectedPrice ? eurFormatter.format(projectedPrice) : 'Sin datos'}</dd>
+            </div>
+            <div>
+              <dt>Retiro estimado</dt>
+              <dd>{projectedPrice ? eurFormatter.format(projectedEURValue) : 'Sin datos'}</dd>
+            </div>
+            <div>
+              <dt>Diferencia vs. actual</dt>
+              <dd className={eurDifference >= 0 ? 'calculator__scenario-positive' : 'calculator__scenario-negative'}>
+                {eurDifferenceLabel}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className={`calculator__advice ${adviceToneClass}`} aria-live="polite">
+          <h3>{strategyTip.title}</h3>
+          <p>{strategyTip.description}</p>
+        </section>
+
+        <section className="calculator__schedule" aria-label="Próximos retiros programados">
+          <div className="calculator__schedule-header">
+            <div>
+              <h3>Calendario de retiros</h3>
+              <p className="help">
+                Visualiza hasta {SCHEDULE_PREVIEW_LIMIT} periodos con el valor proyectado de cada pago.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="ghost-button"
+              disabled={!scheduleAvailable}
+              onClick={handleScheduleExport}
+            >
+              Exportar CSV
+            </button>
+          </div>
+          {scheduleAvailable ? (
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">BTC</th>
+                  <th scope="col">Valor actual</th>
+                  <th scope="col">Escenario</th>
+                  <th scope="col">Saldo restante</th>
+                </tr>
+              </thead>
+              <tbody>
+                {schedule.map((item) => (
+                  <tr key={item.id}>
+                    <th scope="row">{item.label}</th>
+                    <td>{item.amountLabel}</td>
+                    <td>{item.eurLabel}</td>
+                    <td>{item.projectedLabel}</td>
+                    <td>{item.remainingLabel}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="help">
+              Configura una fecha futura y libera BTC retirables para generar el calendario.
+            </p>
+          )}
+        </section>
       </form>
 
       <section className="calculator__profiles" aria-labelledby="profiles-heading">
