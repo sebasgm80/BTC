@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import './Dashboard.css';
 import {
   Area,
@@ -108,6 +108,98 @@ const formatElapsedLabel = seconds => {
   return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
+const useSecondsSince = lastUpdated => {
+  const [seconds, setSeconds] = useState(null);
+
+  useEffect(() => {
+    if (!lastUpdated || typeof window === 'undefined') {
+      setSeconds(null);
+      return undefined;
+    }
+
+    const lastUpdatedMs = new Date(lastUpdated).getTime();
+
+    const updateCounter = () => {
+      const diff = Math.max(0, Math.floor((Date.now() - lastUpdatedMs) / 1000));
+      setSeconds(diff);
+    };
+
+    updateCounter();
+    const interval = window.setInterval(updateCounter, 1000);
+    return () => window.clearInterval(interval);
+  }, [lastUpdated]);
+
+  return seconds;
+};
+
+const ElapsedTimeTicker = memo(({ lastUpdated }) => {
+  const seconds = useSecondsSince(lastUpdated);
+
+  if (!lastUpdated || seconds === null) {
+    return <span>Sin datos</span>;
+  }
+
+  return <span>{formatElapsedLabel(seconds)}</span>;
+});
+
+ElapsedTimeTicker.displayName = 'ElapsedTimeTicker';
+
+const AutoRefreshStatus = memo(({ lastUpdated, refreshIntervalSeconds }) => {
+  const secondsSinceUpdate = useSecondsSince(lastUpdated);
+
+  const timeToNextRefresh = useMemo(() => {
+    if (
+      !lastUpdated ||
+      !refreshIntervalSeconds ||
+      secondsSinceUpdate === null ||
+      secondsSinceUpdate === undefined
+    ) {
+      return null;
+    }
+    const modulo = secondsSinceUpdate % refreshIntervalSeconds;
+    return modulo === 0 ? refreshIntervalSeconds : refreshIntervalSeconds - modulo;
+  }, [lastUpdated, refreshIntervalSeconds, secondsSinceUpdate]);
+
+  const refreshProgress = useMemo(() => {
+    if (!lastUpdated || !refreshIntervalSeconds || timeToNextRefresh === null) return 0;
+    return ((refreshIntervalSeconds - timeToNextRefresh) / refreshIntervalSeconds) * 100;
+  }, [lastUpdated, refreshIntervalSeconds, timeToNextRefresh]);
+
+  const nextRefreshLabel = useMemo(() => {
+    if (!lastUpdated || timeToNextRefresh === null) return 'Sin datos';
+    return formatNextRefreshLabel(timeToNextRefresh);
+  }, [lastUpdated, timeToNextRefresh]);
+
+  const refreshIntervalLabel = useMemo(
+    () => formatIntervalLabel(refreshIntervalSeconds),
+    [refreshIntervalSeconds]
+  );
+
+  return (
+    <section className="dashboard__refresh" aria-label="Próxima actualización automática">
+      <div className="dashboard__refresh-header">
+        <h3>Sincronización automática</h3>
+        <span className="dashboard__refresh-time">{nextRefreshLabel}</span>
+      </div>
+      <div
+        className="dashboard__refresh-bar"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(refreshProgress)}
+      >
+        <span style={{ width: `${refreshProgress}%` }} />
+      </div>
+      <p className="help">
+        Este panel se actualiza cada {refreshIntervalLabel}. Usa el botón de refresco del encabezado
+        para forzar una nueva lectura.
+      </p>
+    </section>
+  );
+});
+
+AutoRefreshStatus.displayName = 'AutoRefreshStatus';
+
 export function Dashboard({
   username = 'Guest',
   avatarUrl = 'https://i.pravatar.cc/100',
@@ -131,7 +223,6 @@ export function Dashboard({
 
   const formattedVariation = `${variation >= 0 ? '+' : ''}${numberFormatter.format(variation)}%`;
   const recentHistory = hasHistory ? [...safeRawHistory].slice(-4).reverse() : [];
-  const [secondsSinceUpdate, setSecondsSinceUpdate] = useState(0);
   const refreshIntervalSeconds = useMemo(
     () => (autoRefreshMs > 0 ? Math.round(autoRefreshMs / 1000) : 0),
     [autoRefreshMs]
@@ -150,22 +241,6 @@ export function Dashboard({
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(TARGETS_STORAGE_KEY, JSON.stringify(targets));
   }, [targets]);
-
-  useEffect(() => {
-    if (!lastUpdated) {
-      setSecondsSinceUpdate(0);
-      return undefined;
-    }
-
-    const updateCounter = () => {
-      const diff = Math.max(0, Math.floor((Date.now() - new Date(lastUpdated).getTime()) / 1000));
-      setSecondsSinceUpdate(diff);
-    };
-
-    updateCounter();
-    const interval = window.setInterval(updateCounter, 1000);
-    return () => window.clearInterval(interval);
-  }, [lastUpdated]);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,32 +285,6 @@ export function Dashboard({
       controller.abort();
     };
   }, []);
-
-  const timeToNextRefresh = useMemo(() => {
-    if (!lastUpdated || !refreshIntervalSeconds) return null;
-    const modulo = secondsSinceUpdate % refreshIntervalSeconds;
-    return modulo === 0 ? refreshIntervalSeconds : refreshIntervalSeconds - modulo;
-  }, [secondsSinceUpdate, lastUpdated, refreshIntervalSeconds]);
-
-  const refreshProgress = useMemo(() => {
-    if (!lastUpdated || !refreshIntervalSeconds || timeToNextRefresh === null) return 0;
-    return ((refreshIntervalSeconds - timeToNextRefresh) / refreshIntervalSeconds) * 100;
-  }, [lastUpdated, timeToNextRefresh, refreshIntervalSeconds]);
-
-  const elapsedLabel = useMemo(() => {
-    if (!lastUpdated) return 'Sin datos';
-    return formatElapsedLabel(secondsSinceUpdate);
-  }, [lastUpdated, secondsSinceUpdate]);
-
-  const nextRefreshLabel = useMemo(() => {
-    if (!lastUpdated || timeToNextRefresh === null) return 'Sin datos';
-    return formatNextRefreshLabel(timeToNextRefresh);
-  }, [lastUpdated, timeToNextRefresh]);
-
-  const refreshIntervalLabel = useMemo(
-    () => formatIntervalLabel(refreshIntervalSeconds),
-    [refreshIntervalSeconds]
-  );
 
   const highestPrice = useMemo(() => {
     if (!hasHistory) return null;
@@ -512,7 +561,9 @@ export function Dashboard({
         </div>
         <div>
           <dt>Tiempo transcurrido</dt>
-          <dd>{elapsedLabel}</dd>
+          <dd>
+            <ElapsedTimeTicker lastUpdated={lastUpdated} />
+          </dd>
         </div>
         <div>
           <dt>Tendencia</dt>
@@ -569,25 +620,10 @@ export function Dashboard({
         )}
       </div>
 
-      <section className="dashboard__refresh" aria-label="Próxima actualización automática">
-        <div className="dashboard__refresh-header">
-          <h3>Sincronización automática</h3>
-          <span className="dashboard__refresh-time">{nextRefreshLabel}</span>
-        </div>
-        <div
-          className="dashboard__refresh-bar"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(refreshProgress)}
-        >
-          <span style={{ width: `${refreshProgress}%` }} />
-        </div>
-        <p className="help">
-          Este panel se actualiza cada {refreshIntervalLabel}. Usa el botón de refresco del encabezado
-          para forzar una nueva lectura.
-        </p>
-      </section>
+      <AutoRefreshStatus
+        lastUpdated={lastUpdated}
+        refreshIntervalSeconds={refreshIntervalSeconds}
+      />
 
       <section className="dashboard__insights" aria-label="Resumen del historial">
         {insights.map(item => (
