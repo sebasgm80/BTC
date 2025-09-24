@@ -12,6 +12,10 @@ import {
   clamp,
 } from './strategyCatalog';
 
+import { createProfileId } from './id';
+
+export { createProfileId } from './id';
+
 export type FrequencyOption = 'weekly' | 'monthly';
 
 export type StoredProfile = {
@@ -45,7 +49,6 @@ export const PLAN_UPDATE_EVENT = 'btc-plan-updated';
 export const VARIATION_MIN = -50;
 export const VARIATION_MAX = 60;
 export const MAX_PROFILES = 5;
-
 const canUseCrypto =
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function';
 
