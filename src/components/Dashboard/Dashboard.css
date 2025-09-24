@@ -532,15 +532,30 @@
   }
 
   .dashboard__chart {
-    height: 240px;
-    padding: 1rem;
+    height: 220px;
+    padding: 0.9rem;
+    background: rgba(14, 20, 36, 0.78);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
+    border: 1px solid rgba(255, 255, 255, 0.04);
   }
 
   .dashboard__refresh,
   .dashboard__pulse,
   .dashboard__targets,
-  .dashboard__resources {
+  .dashboard__resources,
+  .dashboard__insights article,
+  .dashboard__metrics div,
+  .dashboard__recent-item,
+  .dashboard__target-item,
+  .dashboard__pulse-grid li {
     padding: 0.95rem;
+    background: rgba(14, 20, 36, 0.78);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .dashboard__target-item--ready {
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(36, 211, 122, 0.4);
   }
 
   .dashboard__target-heading {
