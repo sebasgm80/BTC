@@ -1,0 +1,7 @@
+/*
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; script-src 'self'; connect-src 'self' https://api.coingecko.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:
+  X-Robots-Tag: noindex, nofollow, noarchive

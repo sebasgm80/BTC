@@ -1,10 +1,11 @@
 import pluginReact from 'eslint-plugin-react';
 import pluginReactHooks from 'eslint-plugin-react-hooks';
 import pluginReactRefresh from 'eslint-plugin-react-refresh';
+import tsParser from '@typescript-eslint/parser';
 
 export default [
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,jsx,ts,tsx}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -12,7 +13,8 @@ export default [
         ecmaFeatures: {
           jsx: true
         }
-      }
+      },
+      parser: tsParser
     },
     plugins: {
       react: pluginReact,

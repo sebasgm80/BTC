@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import './Dashboard.css';
+import { Sparkline } from '../Sparkline';
 import {
   Area,
   AreaChart,
@@ -33,6 +34,7 @@ const percentageFormatter = new Intl.NumberFormat('es-ES', {
 const tooltipFormatter = value => currencyFormatter.format(value);
 
 const TARGETS_STORAGE_KEY = 'btc-targets';
+const PREFERENCES_STORAGE_KEY = 'btc-dashboard-preferences';
 
 const createTargetId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -65,6 +67,21 @@ const safeParseTargets = value => {
       .filter(Boolean);
   } catch (error) {
     return [];
+  }
+};
+
+const readPreferences = () => {
+  if (typeof window === 'undefined') {
+    return { activePanel: 'overview' };
+  }
+  try {
+    const stored = window.localStorage.getItem(PREFERENCES_STORAGE_KEY);
+    if (!stored) return { activePanel: 'overview' };
+    const parsed = JSON.parse(stored);
+    const activePanel = parsed?.activePanel === 'activity' ? 'activity' : 'overview';
+    return { activePanel };
+  } catch (error) {
+    return { activePanel: 'overview' };
   }
 };
 
@@ -319,12 +336,25 @@ const AutoRefreshStatus = memo(({ lastUpdated, refreshIntervalSeconds }) => {
     [refreshIntervalSeconds]
   );
 
+  const lastUpdatedLabel = useMemo(() => {
+    if (!lastUpdated) return 'Sin datos';
+    return new Date(lastUpdated).toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, [lastUpdated]);
+
   return (
     <section className="dashboard__refresh" aria-label="Próxima actualización automática">
       <div className="dashboard__refresh-header">
         <h3>Sincronización automática</h3>
-        <span className="dashboard__refresh-time">{nextRefreshLabel}</span>
+        <span className="dashboard__refresh-time" aria-live="polite">
+          Próxima: {nextRefreshLabel}
+        </span>
       </div>
+      <p className="dashboard__refresh-meta" aria-live="polite">
+        Última actualización: {lastUpdatedLabel}
+      </p>
       <div
         className="dashboard__refresh-bar"
         role="progressbar"
@@ -356,7 +386,15 @@ export function Dashboard({
   autoRefreshMs = 0,
 }) {
   const safeHistory = useMemo(() => (Array.isArray(history) ? history : []), [history]);
-  const safeRawHistory = useMemo(() => (Array.isArray(rawHistory) ? rawHistory : []), [rawHistory]);
+  const safeRawHistory = useMemo(() => {
+    if (!Array.isArray(rawHistory)) return [];
+    return rawHistory
+      .map(sample => ({
+        timestamp: typeof sample?.timestamp === 'string' ? sample.timestamp : null,
+        price: Number(sample?.price),
+      }))
+      .filter(sample => sample.timestamp && Number.isFinite(sample.price));
+  }, [rawHistory]);
   const hasHistory = safeHistory.length > 0;
   const latestEntry = hasHistory ? safeRawHistory.at(-1) : null;
   const firstEntry = hasHistory ? safeRawHistory[0] : null;
@@ -366,7 +404,11 @@ export function Dashboard({
       : 0;
 
   const formattedVariation = `${variation >= 0 ? '+' : ''}${numberFormatter.format(variation)}%`;
-  const recentHistory = hasHistory ? [...safeRawHistory].slice(-4).reverse() : [];
+  const sparklineData = useMemo(() => safeRawHistory.slice(-30), [safeRawHistory]);
+  const recentHistory = useMemo(
+    () => (hasHistory ? [...safeRawHistory].slice(-4).reverse() : []),
+    [hasHistory, safeRawHistory]
+  );
   const refreshIntervalSeconds = useMemo(
     () => (autoRefreshMs > 0 ? Math.round(autoRefreshMs / 1000) : 0),
     [autoRefreshMs]
@@ -381,12 +423,17 @@ export function Dashboard({
   const [targetError, setTargetError] = useState('');
   const [marketPulse, setMarketPulse] = useState({ loading: true, error: null, data: null });
   const [planStorage, setPlanStorage] = useState(() => readPlanFromStorage());
-  const [activePanel, setActivePanel] = useState('overview');
+  const [activePanel, setActivePanel] = useState(() => readPreferences().activePanel);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(TARGETS_STORAGE_KEY, JSON.stringify(targets));
   }, [targets]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify({ activePanel }));
+  }, [activePanel]);
 
   useEffect(() => {
 
@@ -749,8 +796,8 @@ export function Dashboard({
 
   const handleExportHistory = useCallback(() => {
     if (!hasHistory || typeof window === 'undefined') return;
-    const header = 'time,price\n';
-    const rows = safeRawHistory.map(entry => `${entry.time},${entry.price}`).join('\n');
+    const header = 'timestamp,price\n';
+    const rows = safeRawHistory.map(entry => `${entry.timestamp},${entry.price}`).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const formattedDate = new Date().toISOString().replace(/[:T]/g, '-').split('.')[0];
@@ -806,6 +853,37 @@ export function Dashboard({
           </dd>
         </div>
       </dl>
+
+      <section className="dashboard__sparkline" aria-label="Evolución reciente del precio">
+        <div className="dashboard__sparkline-header">
+          <h3>Evolución reciente</h3>
+          <span
+            className={`dashboard__sparkline-badge${
+              hasHistory && safeRawHistory.length > 1
+                ? variation >= 0
+                  ? ' dashboard__sparkline-badge--up'
+                  : ' dashboard__sparkline-badge--down'
+                : ''
+            }`}
+            aria-live="polite"
+          >
+            {hasHistory && safeRawHistory.length > 1 ? formattedVariation : 'Sin historial'}
+          </span>
+        </div>
+        <Sparkline data={sparklineData} title="Histórico local del precio BTC/EUR" />
+        <div className="dashboard__sparkline-footer">
+          <span>
+            Última muestra:{' '}
+            {latestEntry?.timestamp
+              ? new Date(latestEntry.timestamp).toLocaleTimeString('es-ES', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : 'Sin datos'}
+          </span>
+          <span>Datos guardados: {safeRawHistory.length} / 500</span>
+        </div>
+      </section>
 
       <section className="dashboard__plan" aria-label="Seguimiento de renta mensual">
         <header className="dashboard__plan-header">
@@ -952,9 +1030,12 @@ export function Dashboard({
                 : 'Dato inicial';
 
               return (
-                <li key={entry.time} className="dashboard__recent-item">
+                <li key={entry.timestamp} className="dashboard__recent-item">
                   <span className="dashboard__recent-time">
-                    {new Date(entry.time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(entry.timestamp).toLocaleTimeString('es-ES', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                   </span>
                   <span className="dashboard__recent-value">
                     {currencyFormatter.format(entry.price)}
@@ -1077,10 +1158,22 @@ export function Dashboard({
           onClick={handleExportHistory}
           className="ghost-button"
           disabled={!hasHistory}
+          aria-disabled={!hasHistory}
+          title={
+            hasHistory
+              ? 'Descarga el histórico guardado en localStorage'
+              : 'Se necesitan datos para exportar el histórico'
+          }
         >
           Exportar historial
         </button>
-        <button type="button" onClick={onClearHistory} className="secondary-button">
+        <button
+          type="button"
+          onClick={onClearHistory}
+          className="secondary-button"
+          disabled={!hasHistory}
+          aria-disabled={!hasHistory}
+        >
           Limpiar historial
         </button>
       </footer>

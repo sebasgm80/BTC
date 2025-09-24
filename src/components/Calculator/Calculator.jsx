@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { differenceInMonths, differenceInWeeks } from "date-fns";
 import "./Calculator.css";
+import { calculateWithdrawPlan, getPeriodsUntilDate } from "../../lib/plan";
 
 const sourceLabels = {
   coindesk: "CoinDesk",
@@ -158,24 +158,14 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     setFrequency(event.target.value);
   };
 
-  const calculatePeriodsDifference = () => {
-    if (!selectedDate) return 0;
-    const currentDate = new Date();
-    const parsedSelectedDate = new Date(selectedDate);
-    if (Number.isNaN(parsedSelectedDate.getTime())) return 0;
-    if (parsedSelectedDate <= currentDate) return 0;
-
-    if (frequency === "weekly") {
-      const diff = differenceInWeeks(parsedSelectedDate, currentDate);
-      return diff === 0 ? 1 : diff;
-    }
-
-    const diff = differenceInMonths(parsedSelectedDate, currentDate);
-    return diff === 0 ? 1 : diff;
-  };
-
-  const periodsDifference = calculatePeriodsDifference();
-  const validDate = Boolean(selectedDate) && periodsDifference > 0;
+  const periodsDifference = useMemo(
+    () => getPeriodsUntilDate(selectedDate, frequency),
+    [selectedDate, frequency]
+  );
+  const hasDate = Boolean(selectedDate);
+  const parsedSelectedDate = hasDate ? new Date(selectedDate) : null;
+  const invalidSelectedDate = hasDate && (!parsedSelectedDate || Number.isNaN(parsedSelectedDate.getTime()));
+  const validDate = hasDate && !invalidSelectedDate && periodsDifference > 0;
   const periodLabel = frequency === "weekly" ? "semanal" : "mensual";
 
   const walletError = walletValue < 0 ? "El valor debe ser positivo" : "";
@@ -186,37 +176,66 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       ? "No puede superar el total"
       : "";
   const dateError =
-    selectedDate === ""
+    !selectedDate
       ? "Selecciona una fecha"
+      : invalidSelectedDate
+      ? "La fecha no es válida"
       : !validDate
       ? "La fecha debe ser futura"
       : "";
-  const frequencyError = selectedDate && !validDate ? "La fecha debe ser futura" : "";
+  const frequencyError =
+    selectedDate && !invalidSelectedDate && !validDate ? "La fecha debe ser futura" : "";
 
-  const calculateTotalBTCValue = () => {
-    if (!validDate) return 0;
-    const withdrawable = walletValue - btcIntocableValue;
-    if (withdrawable <= 0) return 0;
-    return withdrawable / periodsDifference;
-  };
-  const totalBTCValue = calculateTotalBTCValue();
-  const totalEURValue = price ? totalBTCValue * price : 0;
   const safeWalletValue = walletValue > 0 ? walletValue : 0;
-  const safeProtectedValue = Math.max(btcIntocableValue, 0);
+  const safeProtectedValue = Math.max(Math.min(btcIntocableValue, safeWalletValue), 0);
   const withdrawable = Math.max(safeWalletValue - safeProtectedValue, 0);
+  const projectedPrice = price ? price * (1 + priceVariation / 100) : null;
+
+  const plan = useMemo(
+    () =>
+      calculateWithdrawPlan({
+        walletBtc: safeWalletValue,
+        protectedBtc: safeProtectedValue,
+        frequency,
+        targetDate: selectedDate,
+        price: price ?? undefined,
+        projectedPrice: projectedPrice ?? undefined,
+      }),
+    [frequency, price, projectedPrice, safeProtectedValue, safeWalletValue, selectedDate]
+  );
+
+  const totalBTCValue = plan.isValid ? plan.perPeriodBtc : 0;
+  const totalEURValue = plan.isValid && plan.perPeriodEur > 0 ? plan.perPeriodEur : null;
+  const projectedEURValue =
+    plan.isValid && plan.projectedPerPeriodEur > 0 ? plan.projectedPerPeriodEur : null;
   const preserved = Math.min(safeProtectedValue, safeWalletValue);
   const withdrawablePercent = safeWalletValue > 0 ? (withdrawable / safeWalletValue) * 100 : 0;
   const preservedPercent = safeWalletValue > 0 ? (preserved / safeWalletValue) * 100 : 0;
   const withdrawablePercentLabel = Math.round(withdrawablePercent);
   const preservedPercentLabel = Math.round(preservedPercent);
 
-  const projectedPrice = price ? price * (1 + priceVariation / 100) : null;
-  const projectedEURValue = projectedPrice ? totalBTCValue * projectedPrice : 0;
-  const eurDifference = projectedEURValue - totalEURValue;
+  const eurDifference =
+    totalEURValue !== null && projectedEURValue !== null ? projectedEURValue - totalEURValue : null;
   const eurDifferenceLabel =
-    eurDifference === 0
+    eurDifference === null
+      ? "Sin datos"
+      : eurDifference === 0
       ? "Sin variación"
       : `${eurDifference > 0 ? "+" : "-"}${eurFormatter.format(Math.abs(eurDifference))}`;
+  const differenceToneClass =
+    eurDifference === null
+      ? ""
+      : eurDifference >= 0
+      ? "calculator__scenario-positive"
+      : "calculator__scenario-negative";
+  const scenarioEurLabel =
+    projectedEURValue !== null
+      ? eurFormatter.format(projectedEURValue)
+      : totalEURValue !== null
+      ? eurFormatter.format(totalEURValue)
+      : plan.isValid
+      ? "Sin precio disponible"
+      : "Configura tu plan";
   const scenarioLabel =
     priceVariation === 0
       ? "Escenario neutro"
@@ -225,9 +244,10 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       : "Escenario conservador";
 
   const monthlyFactor = frequency === "weekly" ? 4.345 : 1;
-  const monthlyPayoutBTC = validDate && totalBTCValue > 0 ? totalBTCValue * monthlyFactor : 0;
-  const monthlyPayoutEUR = price ? monthlyPayoutBTC * price : null;
-  const projectedMonthlyPayoutEUR = projectedPrice ? monthlyPayoutBTC * projectedPrice : null;
+  const monthlyPayoutBTC = plan.isValid && totalBTCValue > 0 ? totalBTCValue * monthlyFactor : 0;
+  const monthlyPayoutEUR = plan.isValid && price ? monthlyPayoutBTC * price : null;
+  const projectedMonthlyPayoutEUR =
+    plan.isValid && projectedPrice ? monthlyPayoutBTC * projectedPrice : null;
   const safeMonthlyTarget = Math.max(monthlyTarget, 0);
   const targetCoveragePercent =
     safeMonthlyTarget > 0 && monthlyPayoutEUR !== null
@@ -240,7 +260,7 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     safeMonthlyTarget > 0 && monthlyPayoutEUR !== null ? monthlyPayoutEUR - safeMonthlyTarget : null;
 
   const targetStatus = useMemo(() => {
-    if (!validDate || withdrawable <= 0) {
+    if (!plan.isValid || withdrawable <= 0) {
       return {
         tone: "info",
         title: "Activa tu plan",
@@ -277,7 +297,7 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
           ? `Faltan ${eurFormatter.format(Math.abs(targetGap))} al mes. Ajusta la fecha o reduce los BTC protegidos.`
           : "Aumenta la cantidad disponible para retiro o extiende el plazo para acercarte a tu meta.",
     };
-  }, [safeMonthlyTarget, targetGap, validDate, withdrawable]);
+  }, [plan.isValid, safeMonthlyTarget, targetGap, withdrawable]);
 
   const planSteps = useMemo(
     () => [
@@ -305,16 +325,22 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
   }, [walletError, btcError, dateError, frequencyError]);
 
   const schedule = useMemo(() => {
-    if (!validDate || totalBTCValue <= 0 || periodsDifference <= 0 || withdrawable <= 0) {
+    if (!plan.isValid || !selectedDate) {
       return [];
     }
 
+    const limitDate = new Date(selectedDate);
+    if (Number.isNaN(limitDate.getTime())) return [];
+
     const items = [];
     const currentDate = new Date();
-    const limitDate = new Date(selectedDate);
-    const amountPerPeriod = withdrawable / periodsDifference;
+    const amountPerPeriod = plan.perPeriodBtc;
+    if (amountPerPeriod <= 0) return [];
+    const eurPerPeriod = plan.perPeriodEur && plan.perPeriodEur > 0 ? plan.perPeriodEur : null;
+    const projectedPerPeriod =
+      plan.projectedPerPeriodEur && plan.projectedPerPeriodEur > 0 ? plan.projectedPerPeriodEur : null;
 
-    for (let index = 0; index < Math.min(periodsDifference, SCHEDULE_PREVIEW_LIMIT); index += 1) {
+    for (let index = 0; index < Math.min(plan.periods, SCHEDULE_PREVIEW_LIMIT); index += 1) {
       const payoutDate = new Date(currentDate);
       if (frequency === "weekly") {
         payoutDate.setDate(payoutDate.getDate() + 7 * (index + 1));
@@ -324,7 +350,7 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
 
       if (payoutDate > limitDate) break;
 
-      const remaining = Math.max(withdrawable - amountPerPeriod * (index + 1), 0);
+      const remaining = Math.max(plan.withdrawable - amountPerPeriod * (index + 1), 0);
       const formattedDate = payoutDate.toLocaleDateString("es-ES", {
         day: "2-digit",
         month: "short",
@@ -336,36 +362,25 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
         label: formattedDate,
         amount: amountPerPeriod,
         amountLabel: btcFormatter.format(amountPerPeriod),
-        eurLabel: price ? eurFormatter.format(amountPerPeriod * price) : "—",
-        projectedLabel: projectedPrice
-          ? eurFormatter.format(amountPerPeriod * projectedPrice)
-          : "—",
+        eurLabel: eurPerPeriod !== null ? eurFormatter.format(eurPerPeriod) : "—",
+        projectedLabel: projectedPerPeriod !== null ? eurFormatter.format(projectedPerPeriod) : "—",
         remainingLabel: btcFormatter.format(remaining),
         raw: {
           amount: amountPerPeriod,
-          eur: price ? amountPerPeriod * price : null,
-          projected: projectedPrice ? amountPerPeriod * projectedPrice : null,
+          eur: eurPerPeriod,
+          projected: projectedPerPeriod,
           label: formattedDate,
         },
       });
     }
 
     return items;
-  }, [
-    frequency,
-    periodsDifference,
-    price,
-    projectedPrice,
-    selectedDate,
-    totalBTCValue,
-    validDate,
-    withdrawable,
-  ]);
+  }, [frequency, plan, selectedDate]);
 
   const scheduleAvailable = schedule.length > 0;
 
   const strategyTip = useMemo(() => {
-    if (!validDate || withdrawable <= 0) {
+    if (!plan.isValid || withdrawable <= 0) {
       return {
         tone: "info",
         title: "Construye tu plan",
@@ -398,7 +413,7 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       description:
         "Tu planificación reparte los retiros de forma estable. Guarda este escenario y ajusta el slider de precio para evaluar posibles movimientos del mercado.",
     };
-  }, [validDate, withdrawable, withdrawablePercent]);
+  }, [plan.isValid, withdrawable, withdrawablePercent]);
 
   const adviceToneClass = `calculator__advice--${strategyTip.tone}`;
 
@@ -475,8 +490,14 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
             Ajusta los valores y guarda escenarios para compararlos después.
           </p>
         </div>
-        <button type="button" onClick={() => onRefresh?.()} className="secondary-button">
-          Actualizar precio
+        <button
+          type="button"
+          onClick={() => onRefresh?.()}
+          className="secondary-button"
+          disabled={loading}
+          aria-busy={loading}
+        >
+          {loading ? "Actualizando…" : "Actualizar precio"}
         </button>
       </header>
 
@@ -636,14 +657,18 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
             id="frequency"
             value={frequency}
             onChange={handleFrequencyChange}
-            aria-describedby="frequency-help"
+            aria-describedby={frequencyError ? "frequency-error" : "frequency-help"}
           >
             <option value="monthly">Mensual</option>
             <option value="weekly">Semanal</option>
           </select>
-          <p id="frequency-help" className="help">
-            Calcularemos el monto {periodLabel} que puedes retirar.
-          </p>
+          {frequencyError ? (
+            <p id="frequency-error" className="error">{frequencyError}</p>
+          ) : (
+            <p id="frequency-help" className="help">
+              Calcularemos el monto {periodLabel} que puedes retirar.
+            </p>
+          )}
         </div>
 
         <div className="field">
@@ -692,8 +717,16 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
 
         <div className="calculator__result">
           <h3>{`Retiro ${periodLabel}`}</h3>
-          <p className="calculator__result-value">{btcFormatter.format(totalBTCValue)} BTC</p>
-          <p className="calculator__result-eur">{eurFormatter.format(totalEURValue)}</p>
+          <p className="calculator__result-value">
+            {plan.isValid && totalBTCValue > 0
+              ? `${btcFormatter.format(totalBTCValue)} BTC`
+              : "Configura tu plan"}
+          </p>
+          <p className="calculator__result-eur">
+            {totalEURValue !== null
+              ? eurFormatter.format(totalEURValue)
+              : "Añade precio o espera actualización"}
+          </p>
         </div>
 
         <div className="calculator__insights">
@@ -731,7 +764,7 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
           <p className="calculator__insights-note">
             {withdrawable > 0
               ? `Tu estrategia libera ${btcFormatter.format(withdrawable)} BTC para retiros escalonados.`
-              : 'Ajusta los valores para liberar BTC retirables y visualizar un plan de retiros.'}
+              : "Ajusta los valores para liberar BTC retirables y visualizar un plan de retiros."}
           </p>
         </div>
 
@@ -763,11 +796,11 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
             </div>
             <div>
               <dt>Retiro estimado</dt>
-              <dd>{projectedPrice ? eurFormatter.format(projectedEURValue) : 'Sin datos'}</dd>
+              <dd>{scenarioEurLabel}</dd>
             </div>
             <div>
               <dt>Diferencia vs. actual</dt>
-              <dd className={eurDifference >= 0 ? 'calculator__scenario-positive' : 'calculator__scenario-negative'}>
+              <dd className={differenceToneClass || undefined}>
                 {eurDifferenceLabel}
               </dd>
             </div>
@@ -791,6 +824,12 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
               type="button"
               className="ghost-button"
               disabled={!scheduleAvailable}
+              aria-disabled={!scheduleAvailable}
+              title={
+                scheduleAvailable
+                  ? "Descargar el calendario de retiros en CSV"
+                  : "Configura el plan para activar la exportación"
+              }
               onClick={handleScheduleExport}
             >
               Exportar CSV

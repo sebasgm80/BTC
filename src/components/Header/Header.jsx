@@ -104,6 +104,7 @@ const Header = ({ price, source, lastUpdated, loading, error, onRefresh }) => {
                     onRefresh();
                   }}
                   disabled={loading}
+                  aria-busy={loading}
                 >
                   {loading ? 'Sincronizando…' : 'Actualizar'}
                 </button>
