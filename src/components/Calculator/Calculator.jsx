@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./Calculator.css";
+import { createProfileId } from "../../lib/id";
 import { calculateWithdrawPlan, getPeriodsUntilDate } from "../../lib/plan";
 import {
   STRATEGY_DEFINITIONS,
@@ -14,11 +15,13 @@ import {
   STORAGE_KEYS,
   VARIATION_MIN,
   VARIATION_MAX,
+
   readProfiles,
   writeProfiles,
   dispatchPlanUpdate,
   createProfileId as generateProfileId,
 } from "../../lib/calculatorStorage";
+
 
 const sourceLabels = {
   coindesk: "CoinDesk",
@@ -53,6 +56,7 @@ const SCHEDULE_PREVIEW_LIMIT = 12;
 
 const positiveOrNull = (value) =>
   Number.isFinite(value) && value > 0 ? value : null;
+
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 

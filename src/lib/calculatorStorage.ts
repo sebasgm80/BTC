@@ -84,6 +84,7 @@ export const VARIATION_MIN = -50;
 export const VARIATION_MAX = 60;
 export const MAX_PROFILES = 5;
 
+
 const sanitizeNumber = (value: unknown) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 
 const clampVariation = (value: number) =>
