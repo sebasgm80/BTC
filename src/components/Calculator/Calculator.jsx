@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./Calculator.css";
-import { createProfileId } from "../../lib/id";
 import { calculateWithdrawPlan, getPeriodsUntilDate } from "../../lib/plan";
 import {
   STRATEGY_DEFINITIONS,
@@ -15,11 +14,12 @@ import {
   STORAGE_KEYS,
   VARIATION_MIN,
   VARIATION_MAX,
-
   readProfiles,
   writeProfiles,
   dispatchPlanUpdate,
   createProfileId as generateProfileId,
+  subscribeToPlanUpdates,
+  MAX_PROFILES,
 } from "../../lib/calculatorStorage";
 
 
@@ -57,8 +57,39 @@ const SCHEDULE_PREVIEW_LIMIT = 12;
 const positiveOrNull = (value) =>
   Number.isFinite(value) && value > 0 ? value : null;
 
-
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const profilesAreEqual = (a, b) => {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    const current = a[index];
+    const next = b[index];
+    if (!next) return false;
+
+    if (
+      current.id !== next.id ||
+      current.name !== next.name ||
+      current.walletValue !== next.walletValue ||
+      current.btcIntocableValue !== next.btcIntocableValue ||
+      current.selectedDate !== next.selectedDate ||
+      current.frequency !== next.frequency ||
+      current.strategy !== next.strategy ||
+      current.priceVariation !== next.priceVariation ||
+      current.monthlyTarget !== next.monthlyTarget
+    ) {
+      return false;
+    }
+
+    if (JSON.stringify(current.strategyConfig) !== JSON.stringify(next.strategyConfig)) {
+      return false;
+    }
+
+    if (JSON.stringify(current.globalStrategy) !== JSON.stringify(next.globalStrategy)) {
+      return false;
+    }
+  }
+  return true;
+};
 
 export function Calculator({ price, source, loading, error, lastUpdated, onRefresh }) {
   const readNumberFromStorage = (key) => {
@@ -176,6 +207,15 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
     writeProfiles(profiles);
     notifyPlanUpdate();
   }, [profiles, notifyPlanUpdate]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToPlanUpdates(() => {
+      const storedProfiles = readProfiles();
+      setProfiles((current) => (profilesAreEqual(current, storedProfiles) ? current : storedProfiles));
+    });
+
+    return unsubscribe;
+  }, [setProfiles, readProfiles, subscribeToPlanUpdates]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -847,7 +887,7 @@ export function Calculator({ price, source, loading, error, lastUpdated, onRefre
       priceVariation,
       monthlyTarget: safeMonthlyTarget,
     };
-    setProfiles((prev) => [newProfile, ...prev].slice(0, 5));
+    setProfiles((prev) => [newProfile, ...prev].slice(0, MAX_PROFILES));
     setProfileName("");
   };
 
